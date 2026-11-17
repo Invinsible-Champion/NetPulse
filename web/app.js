@@ -1,10 +1,15 @@
 /**
- * NetPulse & PacketScope: Application Controller
- * Built from scratch with Vanilla JavaScript & Canvas 2D
+ * NetPulse & PacketScope: "Obsidian Lumina" Application Controller
+ * Next-Gen Aerospace Speedometer, Wireshark Protocol Dissection & Chart.js Analytics
  */
 
 document.addEventListener("DOMContentLoaded", () => {
-  // Navigation & State
+  // Initialize Lucide Icons
+  if (window.lucide) {
+    lucide.createIcons();
+  }
+
+  // Application State
   const state = {
     activeTab: "speedtest",
     currentSpeed: 0,
@@ -17,13 +22,14 @@ document.addEventListener("DOMContentLoaded", () => {
     protocolCounts: {},
     ipStats: {},
     timelinePoints: [],
-    eventSource: null
+    eventSource: null,
+    protocolChartInstance: null
   };
 
   // =========================================================================
   // 1. TAB NAVIGATION
   // =========================================================================
-  const navBtns = document.querySelectorAll(".nav-btn");
+  const navBtns = document.querySelectorAll(".nav-tab-btn");
   const tabPanes = document.querySelectorAll(".tab-pane");
 
   navBtns.forEach(btn => {
@@ -37,6 +43,8 @@ document.addEventListener("DOMContentLoaded", () => {
       btn.classList.add("active");
       document.getElementById(`tab-${target}`).classList.add("active");
 
+      if (window.lucide) lucide.createIcons();
+
       if (target === "analytics") {
         renderAnalytics();
       }
@@ -44,146 +52,321 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // =========================================================================
-  // 2. SPEEDOMETER CANVAS GAUGE (BUILT FROM SCRATCH)
+  // 2. FUNKY CYBERPUNK AEROSPACE SPEEDOMETER (CANVAS 2D RETINA HIGH-PRECISION)
   // =========================================================================
   const gaugeCanvas = document.getElementById("speedGauge");
   const gaugeCtx = gaugeCanvas.getContext("2d");
   const digitalSpeedVal = document.getElementById("gaugeSpeedVal");
   const speedStageLabel = document.getElementById("speedStageLabel");
+  const gaugeBacklight = document.getElementById("gaugeBacklight");
+  const speedFunkyTier = document.getElementById("speedFunkyTier");
 
-  // Speed marks on gauge
-  const SPEED_TICKS = [0, 5, 10, 25, 50, 100, 250, 500, 1000];
-
+  // Continuous Logarithmic Math Scale: 100% smooth, mathematically proportional
   function speedToAngle(mbps) {
-    // Non-linear scale mapping for realistic speedometer feel
-    // 0 -> 0%, 10 -> 25%, 50 -> 50%, 250 -> 75%, 1000 -> 100%
-    const minAngle = Math.PI * 0.8;
-    const maxAngle = Math.PI * 2.2;
+    const minAngle = Math.PI * 0.75;
+    const maxAngle = Math.PI * 2.25;
     const totalAngle = maxAngle - minAngle;
 
-    let normalized = 0;
-    if (mbps <= 0) normalized = 0;
-    else if (mbps <= 10) normalized = (mbps / 10) * 0.25;
-    else if (mbps <= 50) normalized = 0.25 + ((mbps - 10) / 40) * 0.25;
-    else if (mbps <= 250) normalized = 0.50 + ((mbps - 50) / 200) * 0.25;
-    else if (mbps <= 1000) normalized = 0.75 + ((mbps - 250) / 750) * 0.25;
-    else normalized = 1.0;
-
+    if (mbps <= 0) return minAngle;
+    // Strictly continuous natural log mapping from 0 to 1000 Mbps
+    const normalized = Math.min(1.0, Math.log10(1 + mbps) / Math.log10(1001));
     return minAngle + normalized * totalAngle;
   }
 
-  function drawGauge() {
+  // Major scale intervals (mathematically continuous)
+  const MAJOR_TICKS = [0, 1, 5, 10, 25, 50, 100, 250, 500, 1000];
+  const MINOR_TICKS = [2, 3, 4, 15, 20, 35, 75, 150, 200, 350, 750];
+
+  // Funky Orbital Cyber-Particle System
+  const cyberParticles = Array.from({ length: 32 }, () => ({
+    angle: Math.random() * Math.PI * 2,
+    dist: 110 + Math.random() * 125,
+    speed: 0.008 + Math.random() * 0.015,
+    size: 1.5 + Math.random() * 2.5,
+    color: ["#00f5ff", "#ff007f", "#39ff14", "#b026ff", "#ffe600"][Math.floor(Math.random() * 5)]
+  }));
+
+  let centerRippleRadius = 15;
+  let sparkTrail = [];
+
+  function drawFunkySpeedometer() {
     const w = gaugeCanvas.width;
     const h = gaugeCanvas.height;
     const cx = w / 2;
-    const cy = h * 0.68;
-    const radius = 210;
+    const cy = h * 0.44;
+    const radius = 250;
 
     gaugeCtx.clearRect(0, 0, w, h);
 
-    const startAngle = Math.PI * 0.8;
-    const endAngle = Math.PI * 2.2;
+    const startAngle = Math.PI * 0.75;
+    const endAngle = Math.PI * 2.25;
+    const currentAngle = speedToAngle(state.currentSpeed);
 
-    // 1. Background Arc Track
+    // -------------------------------------------------------------
+    // A. FUNKY ORBITAL PARTICLES SWARM
+    // -------------------------------------------------------------
+    const speedBoost = 1 + (state.currentSpeed / 25);
+    cyberParticles.forEach(p => {
+      p.angle += p.speed * speedBoost;
+      const px = cx + Math.cos(p.angle) * p.dist;
+      const py = cy + Math.sin(p.angle) * (p.dist * 0.75); // slight elliptic perspective
+
+      gaugeCtx.beginPath();
+      gaugeCtx.arc(px, py, p.size, 0, Math.PI * 2);
+      gaugeCtx.fillStyle = p.color;
+      gaugeCtx.shadowColor = p.color;
+      gaugeCtx.shadowBlur = state.currentSpeed > 5 ? 12 : 6;
+      gaugeCtx.fill();
+    });
+    gaugeCtx.shadowBlur = 0;
+
+    // -------------------------------------------------------------
+    // B. SUBWOOFER / REACTOR BASS PULSE RINGS
+    // -------------------------------------------------------------
+    centerRippleRadius = (centerRippleRadius + 1.2 + (state.currentSpeed * 0.04)) % 95;
+    const rippleAlpha = Math.max(0, 1 - (centerRippleRadius / 95));
+
+    gaugeCtx.beginPath();
+    gaugeCtx.arc(cx, cy, centerRippleRadius, 0, Math.PI * 2);
+    gaugeCtx.strokeStyle = `rgba(0, 245, 255, ${rippleAlpha * 0.4})`;
+    gaugeCtx.lineWidth = 2;
+    gaugeCtx.stroke();
+
+    // -------------------------------------------------------------
+    // C. OUTER TACHOMETER LED CLUSTER (64 SYMMETRIC UNIFORM TICKS)
+    // -------------------------------------------------------------
+    const totalSegments = 64;
+    const segAngleStep = (endAngle - startAngle) / totalSegments;
+
+    for (let i = 0; i <= totalSegments; i++) {
+      const angle = startAngle + i * segAngleStep;
+      const isLit = angle <= currentAngle && state.currentSpeed > 0.1;
+
+      const innerR = radius + 22;
+      const outerR = radius + (i % 8 === 0 ? 38 : 30);
+
+      const x1 = cx + Math.cos(angle) * innerR;
+      const y1 = cy + Math.sin(angle) * innerR;
+      const x2 = cx + Math.cos(angle) * outerR;
+      const y2 = cy + Math.sin(angle) * outerR;
+
+      gaugeCtx.beginPath();
+      gaugeCtx.moveTo(x1, y1);
+      gaugeCtx.lineTo(x2, y2);
+      gaugeCtx.lineWidth = i % 8 === 0 ? 3.5 : 2;
+
+      if (isLit) {
+        // Funky Synthwave Gradient across ticks: Cyan -> Lime -> Purple -> Hot Pink
+        const progress = i / totalSegments;
+        let color = "#00f5ff";
+        if (progress > 0.25) color = "#39ff14";
+        if (progress > 0.55) color = "#b026ff";
+        if (progress > 0.8) color = "#ff007f";
+
+        gaugeCtx.strokeStyle = color;
+        gaugeCtx.shadowColor = color;
+        gaugeCtx.shadowBlur = 12;
+      } else {
+        gaugeCtx.strokeStyle = "rgba(255, 255, 255, 0.08)";
+        gaugeCtx.shadowBlur = 0;
+      }
+      gaugeCtx.stroke();
+    }
+    gaugeCtx.shadowBlur = 0;
+
+    // -------------------------------------------------------------
+    // D. DUAL CONCENTRIC TRACKS & NITRO REDLINE
+    // -------------------------------------------------------------
     gaugeCtx.beginPath();
     gaugeCtx.arc(cx, cy, radius, startAngle, endAngle);
-    gaugeCtx.lineWidth = 18;
-    gaugeCtx.strokeStyle = "rgba(255, 255, 255, 0.06)";
+    gaugeCtx.lineWidth = 14;
+    gaugeCtx.strokeStyle = "rgba(255, 255, 255, 0.04)";
     gaugeCtx.lineCap = "round";
     gaugeCtx.stroke();
 
-    // 2. Active Speed Arc with Gradient Glow
-    const currentAngle = speedToAngle(state.currentSpeed);
-    if (state.currentSpeed > 0.05) {
+    // Redline Nitro Zone (last 15% of track)
+    const redlineStart = endAngle - (endAngle - startAngle) * 0.18;
+    gaugeCtx.beginPath();
+    gaugeCtx.arc(cx, cy, radius, redlineStart, endAngle);
+    gaugeCtx.lineWidth = 14;
+    gaugeCtx.strokeStyle = "rgba(255, 0, 127, 0.25)";
+    gaugeCtx.lineCap = "round";
+    gaugeCtx.stroke();
+
+    // Active Rainbow Synthwave Speed Arc
+    if (state.currentSpeed > 0.1) {
       gaugeCtx.save();
       gaugeCtx.beginPath();
       gaugeCtx.arc(cx, cy, radius, startAngle, currentAngle);
-      gaugeCtx.lineWidth = 18;
+      gaugeCtx.lineWidth = 14;
 
-      const gradient = gaugeCtx.createConicGradient(startAngle, cx, cy);
-      gradient.addColorStop(0, "#06b6d4");
-      gradient.addColorStop(0.5, "#3b82f6");
-      gradient.addColorStop(1, "#8b5cf6");
+      const grad = gaugeCtx.createConicGradient(startAngle, cx, cy);
+      grad.addColorStop(0, "#00f5ff");
+      grad.addColorStop(0.35, "#39ff14");
+      grad.addColorStop(0.7, "#b026ff");
+      grad.addColorStop(1, "#ff007f");
 
-      gaugeCtx.strokeStyle = gradient;
-      gaugeCtx.shadowColor = "#3b82f6";
-      gaugeCtx.shadowBlur = 18;
+      gaugeCtx.strokeStyle = grad;
+      gaugeCtx.shadowColor = "#ff007f";
+      gaugeCtx.shadowBlur = 24;
       gaugeCtx.lineCap = "round";
       gaugeCtx.stroke();
       gaugeCtx.restore();
     }
 
-    // 3. Ticks & Numerical Labels
-    SPEED_TICKS.forEach(val => {
+    // -------------------------------------------------------------
+    // E. CONTINUOUS SCALE MARKINGS & NUMERICAL LABELS
+    // -------------------------------------------------------------
+    // Minor subdivisions
+    MINOR_TICKS.forEach(val => {
       const angle = speedToAngle(val);
-      const isMajor = val === 0 || val === 50 || val === 100 || val === 500 || val === 1000;
-      const tickLen = isMajor ? 14 : 8;
-
-      const innerX = cx + Math.cos(angle) * (radius - 18 - tickLen);
-      const innerY = cy + Math.sin(angle) * (radius - 18 - tickLen);
-      const outerX = cx + Math.cos(angle) * (radius - 18);
-      const outerY = cy + Math.sin(angle) * (radius - 18);
+      const innerX = cx + Math.cos(angle) * (radius - 12);
+      const innerY = cy + Math.sin(angle) * (radius - 12);
+      const outerX = cx + Math.cos(angle) * (radius - 4);
+      const outerY = cy + Math.sin(angle) * (radius - 4);
 
       gaugeCtx.beginPath();
       gaugeCtx.moveTo(innerX, innerY);
       gaugeCtx.lineTo(outerX, outerY);
-      gaugeCtx.lineWidth = isMajor ? 3 : 1.5;
-      gaugeCtx.strokeStyle = isMajor ? "rgba(255, 255, 255, 0.4)" : "rgba(255, 255, 255, 0.15)";
+      gaugeCtx.lineWidth = 1.2;
+      gaugeCtx.strokeStyle = "rgba(255, 255, 255, 0.18)";
       gaugeCtx.stroke();
-
-      // Label
-      if (isMajor || val === 10 || val === 250) {
-        const textX = cx + Math.cos(angle) * (radius - 42);
-        const textY = cy + Math.sin(angle) * (radius - 42);
-        gaugeCtx.font = "600 18px 'JetBrains Mono', monospace";
-        gaugeCtx.fillStyle = "rgba(255, 255, 255, 0.45)";
-        gaugeCtx.textAlign = "center";
-        gaugeCtx.textBaseline = "middle";
-        gaugeCtx.fillText(val.toString(), textX, textY);
-      }
     });
 
-    // 4. Center Needle Indicator
+    // Major ticks and clean typography
+    MAJOR_TICKS.forEach(val => {
+      const angle = speedToAngle(val);
+      const isMajor = val === 0 || val === 10 || val === 50 || val === 100 || val === 500 || val === 1000;
+
+      const innerX = cx + Math.cos(angle) * (radius - 20);
+      const innerY = cy + Math.sin(angle) * (radius - 20);
+      const outerX = cx + Math.cos(angle) * (radius - 6);
+      const outerY = cy + Math.sin(angle) * (radius - 6);
+
+      gaugeCtx.beginPath();
+      gaugeCtx.moveTo(innerX, innerY);
+      gaugeCtx.lineTo(outerX, outerY);
+      gaugeCtx.lineWidth = isMajor ? 3 : 2;
+      gaugeCtx.strokeStyle = isMajor ? "rgba(255, 255, 255, 0.55)" : "rgba(255, 255, 255, 0.25)";
+      gaugeCtx.stroke();
+
+      // Numerical label
+      const textX = cx + Math.cos(angle) * (radius - 48);
+      const textY = cy + Math.sin(angle) * (radius - 48);
+
+      gaugeCtx.font = "700 20px 'JetBrains Mono', monospace";
+      gaugeCtx.fillStyle = isMajor ? "#ffffff" : "rgba(255, 255, 255, 0.4)";
+      gaugeCtx.textAlign = "center";
+      gaugeCtx.textBaseline = "middle";
+      gaugeCtx.fillText(val.toString(), textX, textY);
+    });
+
+    // -------------------------------------------------------------
+    // F. LASER ENERGY BLADE NEEDLE & SPARK EMITTERS
+    // -------------------------------------------------------------
     gaugeCtx.save();
-    gaugeCtx.beginPath();
-    const needleLen = radius - 10;
-    const needleX = cx + Math.cos(currentAngle) * needleLen;
-    const needleY = cy + Math.sin(currentAngle) * needleLen;
+    const needleLen = radius + 8;
+    const needleTipX = cx + Math.cos(currentAngle) * needleLen;
+    const needleTipY = cy + Math.sin(currentAngle) * needleLen;
 
-    gaugeCtx.moveTo(cx, cy);
-    gaugeCtx.lineTo(needleX, needleY);
-    gaugeCtx.lineWidth = 4;
-    gaugeCtx.strokeStyle = "#38bdf8";
-    gaugeCtx.shadowColor = "#38bdf8";
-    gaugeCtx.shadowBlur = 10;
-    gaugeCtx.lineCap = "round";
-    gaugeCtx.stroke();
+    // Record spark trail if moving
+    if (state.currentSpeed > 0.5) {
+      sparkTrail.push({ x: needleTipX, y: needleTipY, alpha: 1.0, color: "#00f5ff" });
+    }
+    sparkTrail = sparkTrail.filter(s => {
+      s.alpha -= 0.08;
+      if (s.alpha > 0) {
+        gaugeCtx.beginPath();
+        gaugeCtx.arc(s.x, s.y, 3 * s.alpha, 0, Math.PI * 2);
+        gaugeCtx.fillStyle = `rgba(0, 245, 255, ${s.alpha})`;
+        gaugeCtx.shadowColor = "#00f5ff";
+        gaugeCtx.shadowBlur = 8;
+        gaugeCtx.fill();
+        return true;
+      }
+      return false;
+    });
 
-    // Center pivot point
+    const baseAngle1 = currentAngle + Math.PI / 2;
+    const baseAngle2 = currentAngle - Math.PI / 2;
+    const baseWidth = 7;
+
+    const bx1 = cx + Math.cos(baseAngle1) * baseWidth;
+    const by1 = cy + Math.sin(baseAngle1) * baseWidth;
+    const bx2 = cx + Math.cos(baseAngle2) * baseWidth;
+    const by2 = cy + Math.sin(baseAngle2) * baseWidth;
+
+    // Laser Blade
     gaugeCtx.beginPath();
-    gaugeCtx.arc(cx, cy, 8, 0, Math.PI * 2);
-    gaugeCtx.fillStyle = "#fff";
+    gaugeCtx.moveTo(bx1, by1);
+    gaugeCtx.lineTo(needleTipX, needleTipY);
+    gaugeCtx.lineTo(bx2, by2);
+    gaugeCtx.closePath();
+
+    const needleGrad = gaugeCtx.createLinearGradient(cx, cy, needleTipX, needleTipY);
+    needleGrad.addColorStop(0, "#ffffff");
+    needleGrad.addColorStop(0.5, "#00f5ff");
+    needleGrad.addColorStop(1, "#ff007f");
+
+    gaugeCtx.fillStyle = needleGrad;
+    gaugeCtx.shadowColor = "#ff007f";
+    gaugeCtx.shadowBlur = 22;
     gaugeCtx.fill();
+
+    // Center Reactor Hub
+    gaugeCtx.beginPath();
+    gaugeCtx.arc(cx, cy, 16, 0, Math.PI * 2);
+    gaugeCtx.fillStyle = "#0c101d";
+    gaugeCtx.strokeStyle = "#00f5ff";
+    gaugeCtx.lineWidth = 3.5;
+    gaugeCtx.shadowColor = "#00f5ff";
+    gaugeCtx.shadowBlur = 12;
+    gaugeCtx.stroke();
+    gaugeCtx.fill();
+
+    gaugeCtx.beginPath();
+    gaugeCtx.arc(cx, cy, 7, 0, Math.PI * 2);
+    gaugeCtx.fillStyle = "#ffffff";
+    gaugeCtx.fill();
+
     gaugeCtx.restore();
 
-    // Update Digital text readout smoothly
+    // Digital Speed Display
     digitalSpeedVal.textContent = state.currentSpeed.toFixed(1);
   }
 
-  // Smooth needle animation loop
+  // Animation Loop with Funky Tier Updates
   function animateGauge() {
-    // Easing toward target speed
-    state.currentSpeed += (state.targetSpeed - state.currentSpeed) * 0.15;
+    state.currentSpeed += (state.targetSpeed - state.currentSpeed) * 0.14;
     if (Math.abs(state.targetSpeed - state.currentSpeed) < 0.05) {
       state.currentSpeed = state.targetSpeed;
     }
-    drawGauge();
+
+    // Dynamic Funky Tier Logic
+    const spd = state.currentSpeed;
+    if (spd <= 0.2) {
+      speedFunkyTier.textContent = "💤 READY TO ROCK";
+    } else if (spd < 5) {
+      speedFunkyTier.textContent = "🐌 CRAWLING IN TRAFFIC";
+    } else if (spd < 15) {
+      speedFunkyTier.textContent = "🛹 RETRO CRUISING";
+    } else if (spd < 35) {
+      speedFunkyTier.textContent = "⚡ TURBO CHILLIN'";
+    } else if (spd < 75) {
+      speedFunkyTier.textContent = "🚀 HYPERDRIVE ENGAGED";
+    } else if (spd < 150) {
+      speedFunkyTier.textContent = "👾 CYBER WARP SPEED";
+    } else {
+      speedFunkyTier.textContent = "🔥 MAXIMUM OVERDRIVE!";
+    }
+
+    drawFunkySpeedometer();
     requestAnimationFrame(animateGauge);
   }
   requestAnimationFrame(animateGauge);
 
   // =========================================================================
-  // 3. REAL-TIME WAVEFORM BANDWIDTH CHART (BUILT FROM SCRATCH)
+  // 3. SMOOTH WAVEFORM BANDWIDTH TIMELINE (CANVAS SPLINE)
   // =========================================================================
   const chartCanvas = document.getElementById("speedChart");
   const chartCtx = chartCanvas.getContext("2d");
@@ -192,17 +375,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function pushSpeedSample(mbps) {
     state.timelinePoints.push(mbps);
-    if (state.timelinePoints.length > 80) {
+    if (state.timelinePoints.length > 70) {
       state.timelinePoints.shift();
     }
     if (mbps > chartPeakMbps) {
       chartPeakMbps = mbps;
       chartPeakLabel.textContent = `Peak: ${chartPeakMbps.toFixed(1)} Mbps`;
     }
-    drawChart();
+    drawWaveform();
   }
 
-  function drawChart() {
+  function drawWaveform() {
     const w = chartCanvas.width;
     const h = chartCanvas.height;
     chartCtx.clearRect(0, 0, w, h);
@@ -210,11 +393,11 @@ document.addEventListener("DOMContentLoaded", () => {
     const pts = state.timelinePoints;
     if (pts.length < 2) return;
 
-    const maxVal = Math.max(10, chartPeakMbps * 1.15);
+    const maxVal = Math.max(12, chartPeakMbps * 1.15);
     const stepX = w / (pts.length - 1);
 
-    // Draw horizontal grid lines
-    chartCtx.strokeStyle = "rgba(255, 255, 255, 0.05)";
+    // Subtle horizontal gridlines
+    chartCtx.strokeStyle = "rgba(255, 255, 255, 0.04)";
     chartCtx.lineWidth = 1;
     for (let i = 1; i <= 3; i++) {
       const y = h - (h / 4) * i;
@@ -224,35 +407,44 @@ document.addEventListener("DOMContentLoaded", () => {
       chartCtx.stroke();
     }
 
-    // Build path
+    // Build Spline Path
     chartCtx.beginPath();
-    chartCtx.moveTo(0, h - (pts[0] / maxVal) * (h - 10));
+    chartCtx.moveTo(0, h - (pts[0] / maxVal) * (h - 14));
 
     for (let i = 1; i < pts.length; i++) {
-      const x = i * stepX;
-      const y = h - (pts[i] / maxVal) * (h - 10);
-      chartCtx.lineTo(x, y);
+      const prevX = (i - 1) * stepX;
+      const prevY = h - (pts[i - 1] / maxVal) * (h - 14);
+      const currX = i * stepX;
+      const currY = h - (pts[i] / maxVal) * (h - 14);
+
+      const midX = (prevX + currX) / 2;
+      chartCtx.bezierCurveTo(midX, prevY, midX, currY, currX, currY);
     }
 
-    // Stroke line
-    chartCtx.strokeStyle = "#38bdf8";
-    chartCtx.lineWidth = 3;
+    // Gradient Stroke Line
+    const lineGrad = chartCtx.createLinearGradient(0, 0, w, 0);
+    lineGrad.addColorStop(0, "#06b6d4");
+    lineGrad.addColorStop(0.5, "#3b82f6");
+    lineGrad.addColorStop(1, "#8b5cf6");
+
+    chartCtx.strokeStyle = lineGrad;
+    chartCtx.lineWidth = 3.5;
     chartCtx.stroke();
 
-    // Fill area gradient
+    // Area Fill
     chartCtx.lineTo(w, h);
     chartCtx.lineTo(0, h);
     chartCtx.closePath();
 
     const areaGrad = chartCtx.createLinearGradient(0, 0, 0, h);
-    areaGrad.addColorStop(0, "rgba(56, 189, 248, 0.35)");
-    areaGrad.addColorStop(1, "rgba(56, 189, 248, 0.0)");
+    areaGrad.addColorStop(0, "rgba(59, 130, 246, 0.28)");
+    areaGrad.addColorStop(1, "rgba(59, 130, 246, 0.0)");
     chartCtx.fillStyle = areaGrad;
     chartCtx.fill();
   }
 
   // =========================================================================
-  // 4. SPEED TEST RUNNER ENGINE (REAL CDN & LOCAL SOCKET ENGINE)
+  // 4. SPEED TEST RUNNER ENGINE
   // =========================================================================
   const startSpeedTestBtn = document.getElementById("startSpeedTestBtn");
   const speedTestTarget = document.getElementById("speedTestTarget");
@@ -266,27 +458,27 @@ document.addEventListener("DOMContentLoaded", () => {
   const resBufferbloat = document.getElementById("resBufferbloat");
   const resBufferbloatSub = document.getElementById("resBufferbloatSub");
 
-  // Detect Closest CDN Edge Server & ISP on Load
+  // Detect Closest CDN Edge Server & ISP Metadata
   async function detectConnectionMeta() {
     try {
       const resp = await fetch("https://speed.cloudflare.com/cdn-cgi/trace", { cache: "no-store" });
       const text = await resp.text();
-      const lines = text.split("\n");
       const meta = {};
-      lines.forEach(l => {
+      text.split("\n").forEach(l => {
         const parts = l.split("=");
         if (parts.length === 2) meta[parts[0]] = parts[1];
       });
 
       if (meta.colo) {
-        metaLocation.textContent = `Server: Global CDN (${meta.colo}, ${meta.loc || 'Global'})`;
+        metaLocation.innerHTML = `<i data-lucide="map-pin" style="width: 12px; height: 12px;"></i> <span>Edge: ${meta.colo} (${meta.loc || 'Global'})</span>`;
       }
       if (meta.ip) {
-        metaIsp.textContent = `Client: ${meta.ip}`;
+        metaIsp.innerHTML = `<i data-lucide="globe" style="width: 12px; height: 12px;"></i> <span>Client: ${meta.ip}</span>`;
       }
+      if (window.lucide) lucide.createIcons();
     } catch (e) {
-      metaLocation.textContent = "Server: Local Host (127.0.0.1)";
-      metaIsp.textContent = "Interface: wlan0 / lo";
+      metaLocation.innerHTML = `<span>Edge: Localhost (127.0.0.1)</span>`;
+      metaIsp.innerHTML = `<span>Interface: wlan0 / lo</span>`;
     }
   }
   detectConnectionMeta();
@@ -304,11 +496,12 @@ document.addEventListener("DOMContentLoaded", () => {
     chartPeakLabel.textContent = "Peak: 0.0 Mbps";
 
     const isCloudflare = speedTestTarget.value === "cloudflare";
-
-    // URLs based on target mode
     const pingEndpoint = isCloudflare ? "https://speed.cloudflare.com/__down?bytes=0" : "/api/ping";
     const downloadBaseUrl = isCloudflare ? "https://speed.cloudflare.com/__down?bytes=25000000" : "/api/download?size=25";
     const uploadEndpoint = isCloudflare ? "https://speed.cloudflare.com/__up" : "/api/upload";
+
+    // Ambient backlight -> Cyan for Ping
+    gaugeBacklight.style.background = "radial-gradient(circle, rgba(6, 182, 212, 0.28) 0%, rgba(59, 130, 246, 0.1) 45%, transparent 70%)";
 
     // Reset card UI
     resDownload.innerHTML = `-- <span>Mbps</span>`;
@@ -320,7 +513,9 @@ document.addEventListener("DOMContentLoaded", () => {
     // -------------------------------------------------------------
     // STAGE 1: UNLOADED PING & RFC 3550 JITTER BENCHMARK
     // -------------------------------------------------------------
-    speedStageLabel.textContent = isCloudflare ? "Testing Ping to CDN Edge..." : "Testing Localhost Ping...";
+    speedStageLabel.innerHTML = `<i data-lucide="radio" style="width: 14px; height: 14px; color: #38bdf8;"></i> <span>Measuring RTT & Jitter...</span>`;
+    if (window.lucide) lucide.createIcons();
+
     const pingSamples = [];
     const pingRounds = 8;
 
@@ -328,11 +523,9 @@ document.addEventListener("DOMContentLoaded", () => {
       const t0 = performance.now();
       try {
         await fetch(`${pingEndpoint}&_t=${Date.now()}_${i}`, { cache: "no-store" });
-        const t1 = performance.now();
-        pingSamples.push(t1 - t0);
+        pingSamples.push(performance.now() - t0);
       } catch (err) {
-        // Fallback for local
-        pingSamples.push(12.5);
+        pingSamples.push(18.0);
       }
       await new Promise(r => setTimeout(r, 60));
     }
@@ -341,7 +534,6 @@ document.addEventListener("DOMContentLoaded", () => {
       ? pingSamples.reduce((a, b) => a + b, 0) / pingSamples.length
       : 20;
 
-    // RFC 3550 Jitter: J = J + (|D(i-1, i)| - J) / 16
     let jitter = 0;
     for (let i = 1; i < pingSamples.length; i++) {
       const diff = Math.abs(pingSamples[i] - pingSamples[i - 1]);
@@ -354,18 +546,20 @@ document.addEventListener("DOMContentLoaded", () => {
     // -------------------------------------------------------------
     // STAGE 2: MULTI-STREAM SUSTAINED DOWNLOAD THROUGHPUT
     // -------------------------------------------------------------
-    speedStageLabel.textContent = isCloudflare ? "Testing Real Internet Download..." : "Testing Localhost Download...";
+    speedStageLabel.innerHTML = `<i data-lucide="arrow-down" style="width: 14px; height: 14px; color: #34d399;"></i> <span>Benchmarking Download...</span>`;
+    gaugeBacklight.style.background = "radial-gradient(circle, rgba(16, 185, 129, 0.28) 0%, rgba(6, 182, 212, 0.1) 45%, transparent 70%)";
+    if (window.lucide) lucide.createIcons();
+
     const downloadDurationMs = 8000;
     const downloadStartTime = performance.now();
     let totalBytesReceived = 0;
     let loadedPingSamples = [];
 
-    // Rolling 1000ms window history for rock-steady needle & chart
     const rollingHistory = [];
     let stableStartBytes = 0;
     let stableStartTime = null;
 
-    // Track loaded latency concurrently (Bufferbloat detection)
+    // Bufferbloat tracker
     const loadedPingInterval = setInterval(async () => {
       const t0 = performance.now();
       try {
@@ -374,7 +568,6 @@ document.addEventListener("DOMContentLoaded", () => {
       } catch (e) {}
     }, 500);
 
-    // 2-3 parallel streams to saturate connection without packet thrashing
     const streamsCount = isCloudflare ? 2 : 4;
     const downloadWorkers = [];
 
@@ -401,18 +594,16 @@ document.addEventListener("DOMContentLoaded", () => {
       })());
     }
 
-    // Rolling 1-second telemetry sampler (impervious to timer jitter)
+    // 1-Second Rolling Window Telemetry Sampler
     const samplerInterval = setInterval(() => {
       const now = performance.now();
       rollingHistory.push({ time: now, bytes: totalBytesReceived });
 
-      // Record stable baseline after slow-start ramp-up (1.5 seconds in)
       if (!stableStartTime && (now - downloadStartTime) >= 1500) {
         stableStartTime = now;
         stableStartBytes = totalBytesReceived;
       }
 
-      // Keep only last 1000ms of history
       const cutoff = now - 1000;
       while (rollingHistory.length > 2 && rollingHistory[0].time < cutoff) {
         rollingHistory.shift();
@@ -434,8 +625,7 @@ document.addEventListener("DOMContentLoaded", () => {
     clearInterval(samplerInterval);
     clearInterval(loadedPingInterval);
 
-    // Compute Ookla-standard sustained speed:
-    // Physical bytes transferred during stable window / stable duration
+    // Compute Ookla-Standard Sustained Physical Speed
     const downloadEndTime = performance.now();
     let finalDownloadMbps = 0;
 
@@ -456,7 +646,10 @@ document.addEventListener("DOMContentLoaded", () => {
     // -------------------------------------------------------------
     // STAGE 3: MULTI-STREAM UPLOAD THROUGHPUT BENCHMARK
     // -------------------------------------------------------------
-    speedStageLabel.textContent = isCloudflare ? "Testing Real Internet Upload..." : "Testing Localhost Upload...";
+    speedStageLabel.innerHTML = `<i data-lucide="arrow-up" style="width: 14px; height: 14px; color: #c084fc;"></i> <span>Benchmarking Upload...</span>`;
+    gaugeBacklight.style.background = "radial-gradient(circle, rgba(139, 92, 246, 0.28) 0%, rgba(236, 72, 153, 0.1) 45%, transparent 70%)";
+    if (window.lucide) lucide.createIcons();
+
     const uploadDurationMs = 7000;
     const uploadStartTime = performance.now();
     let totalBytesUploaded = 0;
@@ -464,7 +657,6 @@ document.addEventListener("DOMContentLoaded", () => {
     let stableUploadStartBytes = 0;
     let stableUploadStartTime = null;
 
-    // Pre-generate 256 KB upload blocks
     const uploadChunk = new Uint8Array(256 * 1024);
     for (let i = 0; i < uploadChunk.length; i++) {
       uploadChunk[i] = (i * 17) & 0xff;
@@ -534,22 +726,35 @@ document.addEventListener("DOMContentLoaded", () => {
     state.targetSpeed = 0;
 
     // -------------------------------------------------------------
-    // STAGE 4: BUFFERBLOAT GRADE EVALUATION
+    // STAGE 4: BUFFERBLOAT GRADE & CELEBRATION
     // -------------------------------------------------------------
-    speedStageLabel.textContent = "Test Completed";
+    speedStageLabel.innerHTML = `<i data-lucide="check-circle" style="width: 14px; height: 14px; color: #34d399;"></i> <span>Benchmark Complete</span>`;
+    gaugeBacklight.style.background = "radial-gradient(circle, rgba(16, 185, 129, 0.22) 0%, rgba(99, 102, 241, 0.1) 45%, transparent 70%)";
+    if (window.lucide) lucide.createIcons();
+
     const loadedPing = loadedPingSamples.length > 0
       ? loadedPingSamples.reduce((a, b) => a + b, 0) / loadedPingSamples.length
-      : unloadedPing + 15;
+      : unloadedPing + 14;
 
     try {
       const bbResp = await fetch(`/api/speedtest/bufferbloat?unloaded=${unloadedPing}&loaded=${loadedPing}`);
       const bbData = await bbResp.json();
       const grade = bbData.grade;
       const cssClass = grade.toLowerCase().replace("+", "-plus");
-      resBufferbloat.innerHTML = `<span class="grade-badge ${cssClass}">${grade}</span>`;
+      resBufferbloat.innerHTML = `<div class="grade-badge-card ${cssClass}">${grade}</div>`;
       resBufferbloatSub.textContent = `${bbData.description} (+${bbData.delta_ms}ms)`;
     } catch (e) {
-      resBufferbloat.innerHTML = `<span class="grade-badge a">A</span>`;
+      resBufferbloat.innerHTML = `<div class="grade-badge-card a">A</div>`;
+    }
+
+    // Confetti Celebration
+    if (window.confetti) {
+      confetti({
+        particleCount: 80,
+        spread: 70,
+        origin: { y: 0.65 },
+        colors: ['#06b6d4', '#10b981', '#8b5cf6', '#ec4899']
+      });
     }
 
     state.isTestingSpeed = false;
@@ -557,7 +762,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // =========================================================================
-  // 5. WIRESHARK PACKET MONITOR (PACKETSCOPE)
+  // 5. WIRESHARK PACKET INSPECTOR (PACKETSCOPE)
   // =========================================================================
   const packetTableBody = document.getElementById("packetTableBody");
   const treeContainer = document.getElementById("treeContainer");
@@ -567,7 +772,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const packetCounterBadge = document.getElementById("packetCounterBadge");
   const ifaceSelect = document.getElementById("ifaceSelect");
   const filterInput = document.getElementById("filterInput");
-  const filterChips = document.querySelectorAll(".filter-chip");
+  const filterChips = document.querySelectorAll(".filter-pill");
 
   const startSnifferBtn = document.getElementById("startSnifferBtn");
   const stopSnifferBtn = document.getElementById("stopSnifferBtn");
@@ -583,7 +788,6 @@ document.addEventListener("DOMContentLoaded", () => {
         const opt = document.createElement("option");
         opt.value = iface.name;
         opt.textContent = `Interface: ${iface.label}`;
-        // Automatically default to the active physical interface (e.g. wlan0) if up
         if (iface.state === "up" && iface.name !== "lo") {
           opt.selected = true;
         }
@@ -592,10 +796,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const privPill = document.getElementById("privilegePill");
       if (data.is_root) {
-        privPill.innerHTML = `<span style="color: var(--accent-green); font-weight:700;">Mode: Raw Socket (Root)</span>`;
+        privPill.innerHTML = `<i data-lucide="shield-check" style="width: 14px; height: 14px; color: #34d399;"></i> <span style="color: #34d399; font-weight:700;">AF_PACKET Root</span>`;
       } else {
-        privPill.innerHTML = `<span>Mode: Protocol Dissector</span>`;
+        privPill.innerHTML = `<i data-lucide="shield" style="width: 14px; height: 14px; color: var(--accent-cyan);"></i> <span>RFC Dissector</span>`;
       }
+      if (window.lucide) lucide.createIcons();
     } catch (err) {
       console.error("Interface load failed:", err);
     }
@@ -603,9 +808,7 @@ document.addEventListener("DOMContentLoaded", () => {
   loadInterfaces();
 
   ifaceSelect.addEventListener("change", () => {
-    if (state.snifferRunning) {
-      startSniffer();
-    }
+    if (state.snifferRunning) startSniffer();
   });
 
   // Sniffer Controls
@@ -644,20 +847,19 @@ document.addEventListener("DOMContentLoaded", () => {
       state.protocolCounts = {};
       state.ipStats = {};
       packetTableBody.innerHTML = "";
-      treeContainer.innerHTML = `<div style="color: var(--text-dim); padding: 20px; text-align: center;">Select a packet in the table above to dissect its protocol layers.</div>`;
-      hexContainer.innerHTML = `<div style="color: var(--text-dim); padding: 20px; text-align: center;">Raw hex representation will appear here upon packet selection.</div>`;
-      packetCounterBadge.textContent = "Packets: 0";
+      treeContainer.innerHTML = `<div style="color: var(--text-dim); padding: 30px; text-align: center;">Select any frame in the table above to dissect its protocol layers.</div>`;
+      hexContainer.innerHTML = `<div style="color: var(--text-dim); padding: 30px; text-align: center;">Raw byte representation will render here upon packet selection.</div>`;
+      packetCounterBadge.innerHTML = `<i data-lucide="cpu" style="width: 12px; height: 12px;"></i> <span>Packets: 0</span>`;
       selectedPacketNumBadge.textContent = "No packet selected";
       selectedPacketLenBadge.textContent = "0 bytes";
+      if (window.lucide) lucide.createIcons();
     } catch (err) {
       console.error("Failed to clear sniffer:", err);
     }
   }
 
-  // Filter Bar handlers
-  filterInput.addEventListener("input", (e) => {
-    applyFilter(e.target.value);
-  });
+  // Filter Bar Handlers
+  filterInput.addEventListener("input", (e) => applyFilter(e.target.value));
 
   filterChips.forEach(chip => {
     chip.addEventListener("click", () => {
@@ -679,7 +881,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }, 200);
   }
 
-  // Server-Sent Events (SSE) Stream
+  // Server-Sent Events (SSE) Real-Time Stream
   function connectPacketStream() {
     if (state.eventSource) {
       state.eventSource.close();
@@ -696,24 +898,22 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     state.eventSource.onerror = () => {
-      // Reconnect after brief pause if disconnected
       if (state.snifferRunning) {
         setTimeout(connectPacketStream, 1000);
       }
     };
   }
 
-  // Wireshark Protocol Row Styler
-  function getProtocolRowClass(proto) {
+  function getProtocolClass(proto) {
     const p = (proto || "").toLowerCase();
-    if (p.includes("http")) return "row-proto-http";
-    if (p.includes("dns")) return "row-proto-dns";
-    if (p.includes("tcp")) return "row-proto-tcp";
-    if (p.includes("udp")) return "row-proto-udp";
-    if (p.includes("tls") || p.includes("ssl")) return "row-proto-tls";
-    if (p.includes("icmp")) return "row-proto-icmp";
-    if (p.includes("arp")) return "row-proto-arp";
-    if (p.includes("dhcp") || p.includes("bootp")) return "row-proto-dhcp";
+    if (p.includes("http")) return "proto-http";
+    if (p.includes("dns")) return "proto-dns";
+    if (p.includes("tcp")) return "proto-tcp";
+    if (p.includes("udp")) return "proto-udp";
+    if (p.includes("tls") || p.includes("ssl")) return "proto-tls";
+    if (p.includes("icmp")) return "proto-icmp";
+    if (p.includes("arp")) return "proto-arp";
+    if (p.includes("dhcp") || p.includes("bootp")) return "proto-dhcp";
     return "";
   }
 
@@ -728,11 +928,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const s = packet.summary;
 
-    // Track analytics stats
     const protoKey = (s.protocol || "OTHER").toUpperCase();
     state.protocolCounts[protoKey] = (state.protocolCounts[protoKey] || 0) + 1;
 
-    // Track IP stats
     const cleanSrc = s.src.split(":")[0];
     const cleanDst = s.dst.split(":")[0];
     if (cleanSrc && !cleanSrc.includes("Unknown")) {
@@ -746,11 +944,10 @@ document.addEventListener("DOMContentLoaded", () => {
       state.ipStats[cleanDst].bytes += s.length;
     }
 
-    packetCounterBadge.textContent = `Packets: ${state.packets.length}`;
+    packetCounterBadge.innerHTML = `<i data-lucide="cpu" style="width: 12px; height: 12px;"></i> <span>Packets: ${state.packets.length}</span>`;
 
-    // Create table row
     const row = document.createElement("tr");
-    row.className = `packet-row ${getProtocolRowClass(s.protocol)}`;
+    row.className = `ws-row ${getProtocolClass(s.protocol)}`;
     row.dataset.packetId = s.no;
 
     row.innerHTML = `
@@ -764,81 +961,80 @@ document.addEventListener("DOMContentLoaded", () => {
     `;
 
     row.addEventListener("click", () => {
-      document.querySelectorAll(".packet-row").forEach(r => r.classList.remove("selected"));
+      document.querySelectorAll(".ws-row").forEach(r => r.classList.remove("selected"));
       row.classList.add("selected");
       selectPacket(packet);
     });
 
     packetTableBody.appendChild(row);
 
-    // Auto-scroll to latest packet unless user has scrolled up
-    const tableWrapper = document.querySelector(".pane-table-wrapper");
-    const isNearBottom = tableWrapper.scrollHeight - tableWrapper.scrollTop - tableWrapper.clientHeight < 120;
+    const tableBox = document.querySelector(".pane-table-box");
+    const isNearBottom = tableBox.scrollHeight - tableBox.scrollTop - tableBox.clientHeight < 120;
     if (isNearBottom) {
-      tableWrapper.scrollTop = tableWrapper.scrollHeight;
+      tableBox.scrollTop = tableBox.scrollHeight;
     }
 
-    // Auto-select first packet if none selected
     if (!state.selectedPacket) {
       row.classList.add("selected");
       selectPacket(packet);
     }
   }
 
-  // Select packet & populate Pane 2 (Tree) and Pane 3 (Hex Dump)
   function selectPacket(packet) {
     state.selectedPacket = packet;
     selectedPacketNumBadge.textContent = `Frame ${packet.summary.no}`;
     selectedPacketLenBadge.textContent = `${packet.raw_len || packet.summary.length} bytes`;
 
-    // 1. Render Pane 2: Protocol Tree
+    // 1. Render Middle Pane: Protocol Tree Hierarchy
     treeContainer.innerHTML = "";
     if (packet.tree && packet.tree.length > 0) {
-      packet.tree.forEach((layer, idx) => {
-        const layerEl = document.createElement("div");
-        layerEl.className = "tree-layer";
+      packet.tree.forEach((layer) => {
+        const layerNode = document.createElement("div");
+        layerNode.className = "tree-layer-node";
 
-        const titleEl = document.createElement("div");
-        titleEl.className = "tree-layer-title";
-        titleEl.innerHTML = `<span>▼</span> <strong>${escapeHtml(layer.title)}</strong>`;
+        const head = document.createElement("div");
+        head.className = "tree-layer-head";
+        head.innerHTML = `<i data-lucide="chevron-down" style="width: 14px; height: 14px;"></i> <strong>${escapeHtml(layer.title)}</strong>`;
 
-        const fieldsEl = document.createElement("div");
-        fieldsEl.className = "tree-layer-fields";
+        const fieldsList = document.createElement("div");
+        fieldsList.className = "tree-fields-list";
 
         if (layer.fields) {
           layer.fields.forEach(f => {
-            const fEl = document.createElement("div");
-            fEl.className = "tree-field";
-            fEl.textContent = f;
-            fieldsEl.appendChild(fEl);
+            const fieldEl = document.createElement("div");
+            fieldEl.className = "tree-leaf-field";
+            fieldEl.textContent = f;
+            fieldsList.appendChild(fieldEl);
           });
         }
 
-        // Toggle accordion collapse
-        titleEl.addEventListener("click", () => {
-          const isOpen = fieldsEl.style.display !== "none";
-          fieldsEl.style.display = isOpen ? "none" : "flex";
-          titleEl.querySelector("span").textContent = isOpen ? "▶" : "▼";
+        head.addEventListener("click", () => {
+          const isOpen = fieldsList.style.display !== "none";
+          fieldsList.style.display = isOpen ? "none" : "flex";
+          const icon = head.querySelector("i");
+          if (icon) icon.setAttribute("data-lucide", isOpen ? "chevron-right" : "chevron-down");
+          if (window.lucide) lucide.createIcons();
         });
 
-        layerEl.appendChild(titleEl);
-        layerEl.appendChild(fieldsEl);
-        treeContainer.appendChild(layerEl);
+        layerNode.appendChild(head);
+        layerNode.appendChild(fieldsList);
+        treeContainer.appendChild(layerNode);
       });
+      if (window.lucide) lucide.createIcons();
     }
 
-    // 2. Render Pane 3: Authentic Wireshark Hex & ASCII Dump
+    // 2. Render Bottom Pane: Hexadecimal & ASCII Dump
     hexContainer.innerHTML = "";
     if (packet.hexdump && packet.hexdump.length > 0) {
       packet.hexdump.forEach(row => {
-        const rowEl = document.createElement("div");
-        rowEl.className = "hex-row";
-        rowEl.innerHTML = `
-          <span class="hex-offset">${row.offset}</span>
-          <span class="hex-bytes">${escapeHtml(row.hex)}</span>
-          <span class="hex-ascii">${escapeHtml(row.ascii)}</span>
+        const line = document.createElement("div");
+        line.className = "hexdump-line";
+        line.innerHTML = `
+          <span class="dump-offset">${row.offset}</span>
+          <span class="dump-bytes">${escapeHtml(row.hex)}</span>
+          <span class="dump-ascii">${escapeHtml(row.ascii)}</span>
         `;
-        hexContainer.appendChild(rowEl);
+        hexContainer.appendChild(line);
       });
     }
   }
@@ -854,14 +1050,11 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // =========================================================================
-  // 6. NETWORK ANALYTICS TAB (BUILT FROM SCRATCH)
+  // 6. NETWORK RADAR & ANALYTICS (CHART.JS INTEGRATION)
   // =========================================================================
-  const protoChartCanvas = document.getElementById("protocolChart");
-  const protoChartCtx = protoChartCanvas.getContext("2d");
-  const protocolLegendList = document.getElementById("protocolLegendList");
   const topTalkersBody = document.getElementById("topTalkersBody");
-
-  const PROTO_COLORS = {
+  const protocolLegendList = document.getElementById("protocolLegendList");
+  const protoColors = {
     TCP: "#8b5cf6",
     UDP: "#3b82f6",
     TLS: "#ec4899",
@@ -878,76 +1071,74 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   function renderAnalytics() {
-    // 1. Draw Donut Chart
     const counts = state.protocolCounts;
-    const keys = Object.keys(counts);
-    const total = Object.values(counts).reduce((a, b) => a + b, 0);
-
-    const w = protoChartCanvas.width;
-    const h = protoChartCanvas.height;
-    protoChartCtx.clearRect(0, 0, w, h);
+    const labels = Object.keys(counts);
+    const dataValues = Object.values(counts);
+    const total = dataValues.reduce((a, b) => a + b, 0);
 
     protocolLegendList.innerHTML = "";
 
     if (total === 0) {
-      protoChartCtx.font = "14px 'Inter', sans-serif";
-      protoChartCtx.fillStyle = "#6b7280";
-      protoChartCtx.textAlign = "center";
-      protoChartCtx.fillText("No packet data captured yet", w / 2, h / 2);
+      topTalkersBody.innerHTML = `<tr><td colspan="4" style="color: var(--text-dim); text-align: center; padding: 24px;">Awaiting captured network packets...</td></tr>`;
       return;
     }
 
-    const cx = w / 2;
-    const cy = h / 2;
-    const outerR = 150;
-    const innerR = 95;
-    let currentAngle = -Math.PI / 2;
+    // Chart.js Donut
+    const colors = labels.map(l => protoColors[l] || protoColors.OTHER);
+    const ctx = document.getElementById("protocolChart").getContext("2d");
 
-    keys.sort((a, b) => counts[b] - counts[a]);
+    if (state.protocolChartInstance) {
+      state.protocolChartInstance.destroy();
+    }
 
-    keys.forEach(k => {
-      const sliceAngle = (counts[k] / total) * Math.PI * 2;
-      const color = PROTO_COLORS[k] || PROTO_COLORS.OTHER;
-
-      protoChartCtx.beginPath();
-      protoChartCtx.arc(cx, cy, outerR, currentAngle, currentAngle + sliceAngle);
-      protoChartCtx.arc(cx, cy, innerR, currentAngle + sliceAngle, currentAngle, true);
-      protoChartCtx.closePath();
-
-      protoChartCtx.fillStyle = color;
-      protoChartCtx.fill();
-
-      // Legend Item
-      const pct = ((counts[k] / total) * 100).toFixed(1);
-      const item = document.createElement("div");
-      item.className = "legend-item";
-      item.innerHTML = `
-        <span class="legend-color" style="background: ${color};"></span>
-        <span style="font-weight:600; color: #fff;">${k}:</span>
-        <span style="color: var(--text-muted);">${counts[k]} (${pct}%)</span>
-      `;
-      protocolLegendList.appendChild(item);
-
-      currentAngle += sliceAngle;
+    state.protocolChartInstance = new Chart(ctx, {
+      type: "doughnut",
+      data: {
+        labels: labels,
+        datasets: [{
+          data: dataValues,
+          backgroundColor: colors,
+          borderColor: "#0b0e17",
+          borderWidth: 3,
+          hoverOffset: 6
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: "75%",
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: "#111624",
+            titleFont: { family: "'Plus Jakarta Sans', sans-serif", size: 12 },
+            bodyFont: { family: "'JetBrains Mono', monospace", size: 12 },
+            borderColor: "rgba(255, 255, 255, 0.1)",
+            borderWidth: 1
+          }
+        }
+      }
     });
 
-    // Donut Center Text
-    protoChartCtx.font = "bold 26px 'JetBrains Mono', monospace";
-    protoChartCtx.fillStyle = "#fff";
-    protoChartCtx.textAlign = "center";
-    protoChartCtx.textBaseline = "middle";
-    protoChartCtx.fillText(total.toString(), cx, cy - 8);
+    // Populate Legend
+    labels.sort((a, b) => counts[b] - counts[a]);
+    labels.forEach(k => {
+      const pct = ((counts[k] / total) * 100).toFixed(1);
+      const color = protoColors[k] || protoColors.OTHER;
 
-    protoChartCtx.font = "500 12px 'Inter', sans-serif";
-    protoChartCtx.fillStyle = "#9ca3af";
-    protoChartCtx.fillText("PACKETS", cx, cy + 18);
+      const item = document.createElement("div");
+      item.className = "flow-item";
+      item.innerHTML = `
+        <span class="flow-dot" style="background: ${color};"></span>
+        <span style="font-weight:700; color: #fff;">${k}:</span>
+        <span style="color: var(--text-muted); font-family: var(--font-mono);">${counts[k]} (${pct}%)</span>
+      `;
+      protocolLegendList.appendChild(item);
+    });
 
-    // 2. Render Top Talkers Table
+    // Top Talkers Table
     const ips = Object.keys(state.ipStats);
-    if (ips.length === 0) {
-      topTalkersBody.innerHTML = `<tr><td colspan="4" style="color: var(--text-dim); text-align: center;">Awaiting captured network packets...</td></tr>`;
-      return;
-    }
+    if (ips.length === 0) return;
 
     ips.sort((a, b) => state.ipStats[b].bytes - state.ipStats[a].bytes);
     const topIps = ips.slice(0, 10);
@@ -959,24 +1150,24 @@ document.addEventListener("DOMContentLoaded", () => {
       const pct = ((s.bytes / totalBytes) * 100).toFixed(1);
       const kb = (s.bytes / 1024).toFixed(1);
 
-      const row = document.createElement("tr");
-      row.innerHTML = `
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
         <td style="color: #60a5fa; font-weight:600;">${escapeHtml(ip)}</td>
         <td>${s.packets}</td>
         <td>${kb} KB</td>
         <td>
           <div style="display:flex; align-items:center; gap:8px;">
-            <div style="flex:1; height:6px; background:rgba(255,255,255,0.1); border-radius:3px; overflow:hidden;">
-              <div style="width:${pct}%; height:100%; background:#3b82f6;"></div>
+            <div style="flex:1; height:6px; background:rgba(255,255,255,0.06); border-radius:3px; overflow:hidden;">
+              <div style="width:${pct}%; height:100%; background:linear-gradient(90deg, #3b82f6, #8b5cf6);"></div>
             </div>
             <span style="font-size:0.75rem; color:var(--text-muted);">${pct}%</span>
           </div>
         </td>
       `;
-      topTalkersBody.appendChild(row);
+      topTalkersBody.appendChild(tr);
     });
   }
 
-  // Auto-start capture for immediate live responsiveness
+  // Start sniffer automatically
   startSniffer();
 });
