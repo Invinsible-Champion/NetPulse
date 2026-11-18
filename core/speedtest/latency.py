@@ -54,9 +54,10 @@ class LatencyMeasurer:
         }
 
     @staticmethod
-    def calculate_bufferbloat_grade(unloaded_ping: float, loaded_ping: float) -> dict:
+    def calculate_bufferbloat_grade(unloaded_ping: float, loaded_ping: float, upload_loaded_ping: float = None) -> dict:
         """
         Calculates Bufferbloat grade based on difference between unloaded and loaded latency.
+        Evaluates both download-loaded and upload-loaded latency deltas.
         Difference:
         <= 5ms: A+
         <= 15ms: A
@@ -65,7 +66,10 @@ class LatencyMeasurer:
         <= 120ms: D
         > 120ms: F
         """
-        delta = max(0.0, loaded_ping - unloaded_ping)
+        delta_down = max(0.0, loaded_ping - unloaded_ping)
+        delta_up = max(0.0, upload_loaded_ping - unloaded_ping) if upload_loaded_ping is not None else delta_down
+        delta = max(delta_down, delta_up)
+
         if delta <= 5:
             grade = "A+"
             desc = "Exceptional - No buffering delays"
@@ -88,7 +92,11 @@ class LatencyMeasurer:
         return {
             "unloaded_ping": round(unloaded_ping, 2),
             "loaded_ping": round(loaded_ping, 2),
+            "download_loaded_ping": round(loaded_ping, 2),
+            "upload_loaded_ping": round(upload_loaded_ping, 2) if upload_loaded_ping is not None else None,
             "delta_ms": round(delta, 2),
+            "delta_down_ms": round(delta_down, 2),
+            "delta_up_ms": round(delta_up, 2) if upload_loaded_ping is not None else round(delta_down, 2),
             "grade": grade,
             "description": desc
         }

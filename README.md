@@ -30,17 +30,27 @@ Unlike typical projects that wrap `scapy`, `pyshark`, or third-party speedtest A
 - **Speed Test & Bufferbloat**:
   - Multi-stream chunked socket throughput calculation in RAM (bypassing disk I/O bottlenecks).
   - RFC 3550 Jitter algorithm: $J = J + \frac{|D(i-1, i)| - J}{16}$.
-  - Bufferbloat grading based on unloaded RTT versus loaded RTT latency delta.
+  - Loaded vs. Unloaded Latency Engine: Measures Idle Ping, Download-Loaded Ping, and Upload-Loaded Ping to isolate queueing delay ($\Delta$).
+  - Bufferbloat grading based on worst-case loaded RTT inflation (A+ to F).
 
 ---
 
-##  Real Internet Speed Testing vs. Local Loopback
+## 🌐 Real Internet Speed Testing, Multi-CDN & Parallel Streams
 
-- **Global CDN Edge Mode (Default - Fast.com / Ookla Equivalent)**:
-  Measures your **true ISP broadband / WiFi line speed** by streaming multi-connection chunked downloads and uploads against the nearest regional Edge CDN nodes (with automatic detection of your Client IP, Location, and regional datacenter, e.g. BOM / Mumbai).
-  *While this test runs, you can watch the live packets fly across your physical `wlan0` interface in the Wireshark Packet Monitor!*
-- **Localhost Socket Mode**:
-  Measures the raw memory-to-memory socket throughput of the built-in Python socket engine over loopback (`127.0.0.1`), demonstrating internal kernel IPC throughput without ISP bottlenecks.
+- **Multi-CDN Edge Provider Selection**:
+  - **Cloudflare Anycast CDN (Default)**: Tests against 300+ global edge data centers with regional IP and ASN detection.
+  - **Netflix Open Connect CDN (Fast.com Engine)**: Dynamically discovers and streams video chunks directly from nearest ISP-hosted Netflix Open Connect Appliances (OCA).
+  - **AWS CloudFront / jsDelivr Edge**: Benchmarks throughput over Amazon Web Services global backbone.
+  - **Localhost Socket Server (Loopback 127.0.0.1:8080)**: Hand-crafted Python memory-to-memory socket throughput testing internal kernel IPC speeds.
+- **Parallel TCP Streams Selector**:
+  - `1x (Single Stream)`: Tests single-connection TCP window scaling and ISP single-socket throttling.
+  - `2x`, `4x (Balanced Standard)`: Industry standard multi-stream concurrency (matching Ookla / Fast.com).
+  - `8x (High Performance)` & `16x (Extreme Gigabit)`: Heavy socket pipeline saturation for high-speed fiber broadband.
+- **Loaded & Unloaded Latency Breakdown Deck**:
+  - **Idle Latency**: Baseline round-trip time (ms) and RFC 3550 Jitter.
+  - **Download-Loaded Latency**: Latency measured concurrently during downstream saturation with Delta tag ($+\Delta_{\text{down}}\text{ ms}$).
+  - **Upload-Loaded Latency**: Latency measured concurrently during upstream saturation with Delta tag ($+\Delta_{\text{up}}\text{ ms}$).
+  - **Comparative Visual Bars & Bufferbloat Verdict**: Displays normalized comparison bars and explains practical impact on competitive gaming, Zoom calls, and VoIP.
 
 ---
 
@@ -50,6 +60,11 @@ Unlike typical projects that wrap `scapy`, `pyshark`, or third-party speedtest A
   - High-DPI HTML5 Canvas Speedometer gauge with smooth needle physics and dynamic glowing speed arc.
   - Digital readout (Mbps) and live throughput timeline waveform graph.
   - Metric cards for Download, Upload, Latency, RFC 3550 Jitter, and Bufferbloat Rating (A+ to F).
+  - **Global Edge Routing Radar & Fiber Optic Diagnostics Map**:
+    - Real-time Canvas world map with interactive global edge server switching (Mumbai, Singapore, Frankfurt, London, Tokyo, Silicon Valley).
+    - Dynamic great-circle geodesic ballistic arcs connecting the client to destination edge nodes.
+    - Live animated packet energy streams: particles rush from Server $\to$ Client during Download, and from Client $\to$ Server during Upload!
+    - Optical fiber physics calculator: Haversine distance, speed of light in silica fiber ($c / 1.468$), routing efficiency, and real undersea cable backbones (SEA-ME-WE 4, AAE-1, MAREA, BBG).
 - **Wireshark Monitor (PacketScope)**:
   - **Top Pane**: Color-coded packet summary table (Green: HTTP, Blue: DNS, Purple: TCP, Pink: TLS, Orange: ICMP, Yellow: ARP).
   - **Middle Pane**: Interactive collapsible protocol tree hierarchy.

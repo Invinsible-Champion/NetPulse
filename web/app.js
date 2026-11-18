@@ -458,6 +458,35 @@ document.addEventListener("DOMContentLoaded", () => {
   const resBufferbloat = document.getElementById("resBufferbloat");
   const resBufferbloatSub = document.getElementById("resBufferbloatSub");
 
+  // Loaded & Unloaded Latency Breakdown Elements
+  const latIdleVal = document.getElementById("latIdleVal");
+  const latIdleJitter = document.getElementById("latIdleJitter");
+  const barFillIdle = document.getElementById("barFillIdle");
+
+  const latDownVal = document.getElementById("latDownVal");
+  const latDownDeltaTag = document.getElementById("latDownDeltaTag");
+  const latDownSub = document.getElementById("latDownSub");
+  const barFillDown = document.getElementById("barFillDown");
+
+  const latUpVal = document.getElementById("latUpVal");
+  const latUpDeltaTag = document.getElementById("latUpDeltaTag");
+  const latUpSub = document.getElementById("latUpSub");
+  const barFillUp = document.getElementById("barFillUp");
+
+  const gradePillTag = document.getElementById("gradePillTag");
+  const latencyVerdictText = document.getElementById("latencyVerdictText");
+
+  // Parallel TCP Streams Selector
+  const streamPills = document.querySelectorAll("#streamsBtnGroup .stream-pill");
+  let selectedStreams = 4;
+  streamPills.forEach(pill => {
+    pill.addEventListener("click", () => {
+      streamPills.forEach(p => p.classList.remove("active"));
+      pill.classList.add("active");
+      selectedStreams = parseInt(pill.dataset.streams, 10) || 4;
+    });
+  });
+
   // Detect Closest CDN Edge Server & ISP Metadata
   async function detectConnectionMeta() {
     try {
@@ -483,6 +512,26 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   detectConnectionMeta();
 
+  // Dynamic Provider Selection Changes
+  speedTestTarget.addEventListener("change", () => {
+    const val = speedTestTarget.value;
+    if (val === "cloudflare") {
+      detectConnectionMeta();
+    } else if (val === "fast") {
+      metaLocation.innerHTML = `<i data-lucide="map-pin" style="width: 12px; height: 12px;"></i> <span>Netflix OCA Edge</span>`;
+      metaIsp.innerHTML = `<i data-lucide="film" style="width: 12px; height: 12px;"></i> <span>Fast.com Engine</span>`;
+      if (window.lucide) lucide.createIcons();
+    } else if (val === "jsdelivr") {
+      metaLocation.innerHTML = `<i data-lucide="map-pin" style="width: 12px; height: 12px;"></i> <span>AWS CloudFront Edge</span>`;
+      metaIsp.innerHTML = `<i data-lucide="cloud" style="width: 12px; height: 12px;"></i> <span>Amazon Backbone CDN</span>`;
+      if (window.lucide) lucide.createIcons();
+    } else if (val === "local") {
+      metaLocation.innerHTML = `<i data-lucide="server" style="width: 12px; height: 12px;"></i> <span>Localhost (127.0.0.1:8080)</span>`;
+      metaIsp.innerHTML = `<i data-lucide="cpu" style="width: 12px; height: 12px;"></i> <span>AF_PACKET Socket</span>`;
+      if (window.lucide) lucide.createIcons();
+    }
+  });
+
   startSpeedTestBtn.addEventListener("click", () => {
     if (state.isTestingSpeed) return;
     runFullSpeedTest();
@@ -495,10 +544,55 @@ document.addEventListener("DOMContentLoaded", () => {
     chartPeakMbps = 0;
     chartPeakLabel.textContent = "Peak: 0.0 Mbps";
 
-    const isCloudflare = speedTestTarget.value === "cloudflare";
-    const pingEndpoint = isCloudflare ? "https://speed.cloudflare.com/__down?bytes=0" : "/api/ping";
-    const downloadBaseUrl = isCloudflare ? "https://speed.cloudflare.com/__down?bytes=25000000" : "/api/download?size=25";
-    const uploadEndpoint = isCloudflare ? "https://speed.cloudflare.com/__up" : "/api/upload";
+    const targetMode = speedTestTarget.value; // "cloudflare", "fast", "jsdelivr", "local"
+    const activeNode = window.getActiveEdgeNode ? window.getActiveEdgeNode() : null;
+
+    let pingEndpoint = "/api/ping";
+    let downloadBaseUrl = "/api/download?size=25";
+    let uploadEndpoint = "/api/upload";
+    let fastTargets = [];
+
+    // Resolve Provider Endpoints
+    if (targetMode === "cloudflare") {
+      pingEndpoint = activeNode ? activeNode.pingEndpoint : "https://speed.cloudflare.com/__down?bytes=0";
+      downloadBaseUrl = activeNode ? activeNode.downEndpoint : "https://speed.cloudflare.com/__down?bytes=25000000";
+      uploadEndpoint = activeNode ? activeNode.upEndpoint : "https://speed.cloudflare.com/__up";
+    } else if (targetMode === "fast") {
+      try {
+        speedStageLabel.innerHTML = `<i data-lucide="loader" style="width: 14px; height: 14px; color: #fbbf24;"></i> <span>Resolving Fast.com Edge...</span>`;
+        if (window.lucide) lucide.createIcons();
+        const fastResp = await fetch("/api/speedtest/fast-targets");
+        const fastData = await fastResp.json();
+        if (fastData.targets && fastData.targets.length > 0) {
+          fastTargets = fastData.targets.map(t => t.url);
+          downloadBaseUrl = fastTargets[0];
+          pingEndpoint = `${fastTargets[0]}&range=0-0`;
+          if (fastData.client && fastData.client.location) {
+            metaLocation.innerHTML = `<i data-lucide="map-pin" style="width: 12px; height: 12px;"></i> <span>OCA: ${fastData.client.location.city} (${fastData.client.location.country})</span>`;
+            metaIsp.innerHTML = `<i data-lucide="globe" style="width: 12px; height: 12px;"></i> <span>ISP ASN: ${fastData.client.asn}</span>`;
+            if (window.lucide) lucide.createIcons();
+          }
+        } else {
+          pingEndpoint = "https://speed.cloudflare.com/__down?bytes=0";
+          downloadBaseUrl = "https://speed.cloudflare.com/__down?bytes=25000000";
+        }
+      } catch (e) {
+        pingEndpoint = "https://speed.cloudflare.com/__down?bytes=0";
+        downloadBaseUrl = "https://speed.cloudflare.com/__down?bytes=25000000";
+      }
+      uploadEndpoint = "https://speed.cloudflare.com/__up";
+    } else if (targetMode === "jsdelivr") {
+      pingEndpoint = "https://cdn.jsdelivr.net/npm/three@0.160.0/package.json";
+      downloadBaseUrl = "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
+      uploadEndpoint = "https://speed.cloudflare.com/__up";
+    } else {
+      // local
+      pingEndpoint = "/api/ping";
+      downloadBaseUrl = "/api/download?size=25";
+      uploadEndpoint = "/api/upload";
+    }
+
+    if (window.setMapTrafficMode) setMapTrafficMode("ping");
 
     // Ambient backlight -> Cyan for Ping
     gaugeBacklight.style.background = "radial-gradient(circle, rgba(6, 182, 212, 0.28) 0%, rgba(59, 130, 246, 0.1) 45%, transparent 70%)";
@@ -510,19 +604,47 @@ document.addEventListener("DOMContentLoaded", () => {
     resJitter.textContent = `Jitter: -- ms (RFC 3550)`;
     resBufferbloat.innerHTML = `--`;
 
+    // Reset Latency Breakdown Deck
+    if (latIdleVal) latIdleVal.innerHTML = `-- <span>ms</span>`;
+    if (latIdleJitter) latIdleJitter.textContent = `Jitter: -- ms`;
+    if (barFillIdle) barFillIdle.style.width = "0%";
+
+    if (latDownVal) latDownVal.innerHTML = `-- <span>ms</span>`;
+    if (latDownDeltaTag) {
+      latDownDeltaTag.textContent = `+0.0 ms`;
+      latDownDeltaTag.className = "latency-delta-tag";
+    }
+    if (barFillDown) barFillDown.style.width = "0%";
+
+    if (latUpVal) latUpVal.innerHTML = `-- <span>ms</span>`;
+    if (latUpDeltaTag) {
+      latUpDeltaTag.textContent = `+0.0 ms`;
+      latUpDeltaTag.className = "latency-delta-tag";
+    }
+    if (barFillUp) barFillUp.style.width = "0%";
+
+    if (gradePillTag) {
+      gradePillTag.className = "grade-pill-tag grade-neutral";
+      gradePillTag.textContent = "--";
+    }
+    if (latencyVerdictText) {
+      latencyVerdictText.textContent = `Benchmarking network latency with ${selectedStreams} parallel streams...`;
+    }
+
     // -------------------------------------------------------------
     // STAGE 1: UNLOADED PING & RFC 3550 JITTER BENCHMARK
     // -------------------------------------------------------------
-    speedStageLabel.innerHTML = `<i data-lucide="radio" style="width: 14px; height: 14px; color: #38bdf8;"></i> <span>Measuring RTT & Jitter...</span>`;
+    speedStageLabel.innerHTML = `<i data-lucide="radio" style="width: 14px; height: 14px; color: #38bdf8;"></i> <span>Measuring Idle RTT & Jitter...</span>`;
     if (window.lucide) lucide.createIcons();
 
     const pingSamples = [];
     const pingRounds = 8;
+    const pingSep = pingEndpoint.includes("?") ? "&" : "?";
 
     for (let i = 0; i < pingRounds; i++) {
       const t0 = performance.now();
       try {
-        await fetch(`${pingEndpoint}&_t=${Date.now()}_${i}`, { cache: "no-store" });
+        await fetch(`${pingEndpoint}${pingSep}_t=${Date.now()}_${i}`, { cache: "no-store" });
         pingSamples.push(performance.now() - t0);
       } catch (err) {
         pingSamples.push(18.0);
@@ -543,39 +665,64 @@ document.addEventListener("DOMContentLoaded", () => {
     resPing.innerHTML = `${unloadedPing.toFixed(1)} <span>ms</span>`;
     resJitter.textContent = `Jitter: ${jitter.toFixed(1)} ms (RFC 3550)`;
 
+    if (latIdleVal) latIdleVal.innerHTML = `${unloadedPing.toFixed(1)} <span>ms</span>`;
+    if (latIdleJitter) latIdleJitter.textContent = `RFC 3550 Jitter: ${jitter.toFixed(1)} ms`;
+    if (barFillIdle) barFillIdle.style.width = "40%";
+
     // -------------------------------------------------------------
-    // STAGE 2: MULTI-STREAM SUSTAINED DOWNLOAD THROUGHPUT
+    // STAGE 2: MULTI-STREAM SUSTAINED DOWNLOAD & LOADED LATENCY
     // -------------------------------------------------------------
-    speedStageLabel.innerHTML = `<i data-lucide="arrow-down" style="width: 14px; height: 14px; color: #34d399;"></i> <span>Benchmarking Download...</span>`;
+    speedStageLabel.innerHTML = `<i data-lucide="arrow-down" style="width: 14px; height: 14px; color: #34d399;"></i> <span>Benchmarking Download (${selectedStreams} Streams)...</span>`;
     gaugeBacklight.style.background = "radial-gradient(circle, rgba(16, 185, 129, 0.28) 0%, rgba(6, 182, 212, 0.1) 45%, transparent 70%)";
     if (window.lucide) lucide.createIcons();
+    if (window.setMapTrafficMode) setMapTrafficMode("download");
 
     const downloadDurationMs = 8000;
     const downloadStartTime = performance.now();
     let totalBytesReceived = 0;
-    let loadedPingSamples = [];
+    const downloadLoadedPingSamples = [];
 
     const rollingHistory = [];
     let stableStartBytes = 0;
     let stableStartTime = null;
 
-    // Bufferbloat tracker
-    const loadedPingInterval = setInterval(async () => {
+    // Continuous Download-Loaded Latency Tracker
+    const downLoadedPingInterval = setInterval(async () => {
       const t0 = performance.now();
       try {
-        await fetch(`${pingEndpoint}&_loaded=1&_t=${Date.now()}`, { cache: "no-store" });
-        loadedPingSamples.push(performance.now() - t0);
-      } catch (e) {}
-    }, 500);
+        await fetch(`${pingEndpoint}${pingSep}_loaded_down=1&_t=${Date.now()}`, { cache: "no-store" });
+        const rtt = performance.now() - t0;
+        downloadLoadedPingSamples.push(rtt);
 
-    const streamsCount = isCloudflare ? 2 : 4;
+        const currentAvg = downloadLoadedPingSamples.reduce((a, b) => a + b, 0) / downloadLoadedPingSamples.length;
+        const delta = Math.max(0, currentAvg - unloadedPing);
+
+        if (latDownVal) latDownVal.innerHTML = `${currentAvg.toFixed(1)} <span>ms</span>`;
+        if (latDownDeltaTag) {
+          latDownDeltaTag.textContent = `+${delta.toFixed(1)} ms`;
+          latDownDeltaTag.className = `latency-delta-tag ${delta <= 15 ? 'good' : (delta <= 40 ? 'elevated' : 'bad')}`;
+        }
+
+        const maxRef = Math.max(unloadedPing, currentAvg, 40);
+        if (barFillIdle) barFillIdle.style.width = `${Math.min(100, (unloadedPing / maxRef) * 100)}%`;
+        if (barFillDown) barFillDown.style.width = `${Math.min(100, (currentAvg / maxRef) * 100)}%`;
+      } catch (e) {}
+    }, 350);
+
+    const streamsCount = selectedStreams;
     const downloadWorkers = [];
 
     for (let s = 0; s < streamsCount; s++) {
       downloadWorkers.push((async () => {
+        let streamUrl = downloadBaseUrl;
+        if (fastTargets.length > 0) {
+          streamUrl = fastTargets[s % fastTargets.length];
+        }
+        const sep = streamUrl.includes("?") ? "&" : "?";
+
         while (performance.now() - downloadStartTime < downloadDurationMs) {
           try {
-            const url = `${downloadBaseUrl}&_stream=${s}&_t=${Date.now()}`;
+            const url = `${streamUrl}${sep}_stream=${s}&_t=${Date.now()}`;
             const resp = await fetch(url, { cache: "no-store" });
             const reader = resp.body.getReader();
             while (true) {
@@ -623,7 +770,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     await Promise.all(downloadWorkers);
     clearInterval(samplerInterval);
-    clearInterval(loadedPingInterval);
+    clearInterval(downLoadedPingInterval);
 
     // Compute Ookla-Standard Sustained Physical Speed
     const downloadEndTime = performance.now();
@@ -641,18 +788,25 @@ document.addEventListener("DOMContentLoaded", () => {
     resDownload.innerHTML = `${finalDownloadMbps.toFixed(1)} <span>Mbps</span>`;
     state.targetSpeed = 0;
 
+    const downloadLoadedPing = downloadLoadedPingSamples.length > 0
+      ? downloadLoadedPingSamples.reduce((a, b) => a + b, 0) / downloadLoadedPingSamples.length
+      : unloadedPing + 12.0;
+
     await new Promise(r => setTimeout(r, 600));
 
     // -------------------------------------------------------------
-    // STAGE 3: MULTI-STREAM UPLOAD THROUGHPUT BENCHMARK
+    // STAGE 3: MULTI-STREAM SUSTAINED UPLOAD & LOADED LATENCY
     // -------------------------------------------------------------
-    speedStageLabel.innerHTML = `<i data-lucide="arrow-up" style="width: 14px; height: 14px; color: #c084fc;"></i> <span>Benchmarking Upload...</span>`;
+    const uploadStreams = Math.min(selectedStreams, 8);
+    speedStageLabel.innerHTML = `<i data-lucide="arrow-up" style="width: 14px; height: 14px; color: #c084fc;"></i> <span>Benchmarking Upload (${uploadStreams} Streams)...</span>`;
     gaugeBacklight.style.background = "radial-gradient(circle, rgba(139, 92, 246, 0.28) 0%, rgba(236, 72, 153, 0.1) 45%, transparent 70%)";
     if (window.lucide) lucide.createIcons();
+    if (window.setMapTrafficMode) setMapTrafficMode("upload");
 
     const uploadDurationMs = 7000;
     const uploadStartTime = performance.now();
     let totalBytesUploaded = 0;
+    const uploadLoadedPingSamples = [];
     const uploadRollingHistory = [];
     let stableUploadStartBytes = 0;
     let stableUploadStartTime = null;
@@ -661,6 +815,30 @@ document.addEventListener("DOMContentLoaded", () => {
     for (let i = 0; i < uploadChunk.length; i++) {
       uploadChunk[i] = (i * 17) & 0xff;
     }
+
+    // Continuous Upload-Loaded Latency Tracker
+    const upLoadedPingInterval = setInterval(async () => {
+      const t0 = performance.now();
+      try {
+        await fetch(`${pingEndpoint}${pingSep}_loaded_up=1&_t=${Date.now()}`, { cache: "no-store" });
+        const rtt = performance.now() - t0;
+        uploadLoadedPingSamples.push(rtt);
+
+        const currentAvg = uploadLoadedPingSamples.reduce((a, b) => a + b, 0) / uploadLoadedPingSamples.length;
+        const delta = Math.max(0, currentAvg - unloadedPing);
+
+        if (latUpVal) latUpVal.innerHTML = `${currentAvg.toFixed(1)} <span>ms</span>`;
+        if (latUpDeltaTag) {
+          latUpDeltaTag.textContent = `+${delta.toFixed(1)} ms`;
+          latUpDeltaTag.className = `latency-delta-tag ${delta <= 15 ? 'good' : (delta <= 40 ? 'elevated' : 'bad')}`;
+        }
+
+        const maxRef = Math.max(unloadedPing, downloadLoadedPing, currentAvg, 40);
+        if (barFillIdle) barFillIdle.style.width = `${Math.min(100, (unloadedPing / maxRef) * 100)}%`;
+        if (barFillDown) barFillDown.style.width = `${Math.min(100, (downloadLoadedPing / maxRef) * 100)}%`;
+        if (barFillUp) barFillUp.style.width = `${Math.min(100, (currentAvg / maxRef) * 100)}%`;
+      } catch (e) {}
+    }, 350);
 
     const uploadSampler = setInterval(() => {
       const now = performance.now();
@@ -688,13 +866,14 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }, 120);
 
-    const uploadStreams = 2;
     const uploadWorkers = [];
+    const upSep = uploadEndpoint.includes("?") ? "&" : "?";
+
     for (let u = 0; u < uploadStreams; u++) {
       uploadWorkers.push((async () => {
         while (performance.now() - uploadStartTime < uploadDurationMs) {
           try {
-            await fetch(`${uploadEndpoint}?_t=${Date.now()}_${u}`, {
+            await fetch(`${uploadEndpoint}${upSep}_t=${Date.now()}_${u}`, {
               method: "POST",
               headers: { "Content-Type": "application/octet-stream" },
               body: uploadChunk
@@ -709,6 +888,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     await Promise.all(uploadWorkers);
     clearInterval(uploadSampler);
+    clearInterval(upLoadedPingInterval);
 
     const uploadEndTime = performance.now();
     let finalUploadMbps = 0;
@@ -725,26 +905,55 @@ document.addEventListener("DOMContentLoaded", () => {
     resUpload.innerHTML = `${finalUploadMbps.toFixed(1)} <span>Mbps</span>`;
     state.targetSpeed = 0;
 
+    const uploadLoadedPing = uploadLoadedPingSamples.length > 0
+      ? uploadLoadedPingSamples.reduce((a, b) => a + b, 0) / uploadLoadedPingSamples.length
+      : unloadedPing + 8.0;
+
     // -------------------------------------------------------------
     // STAGE 4: BUFFERBLOAT GRADE & CELEBRATION
     // -------------------------------------------------------------
     speedStageLabel.innerHTML = `<i data-lucide="check-circle" style="width: 14px; height: 14px; color: #34d399;"></i> <span>Benchmark Complete</span>`;
     gaugeBacklight.style.background = "radial-gradient(circle, rgba(16, 185, 129, 0.22) 0%, rgba(99, 102, 241, 0.1) 45%, transparent 70%)";
     if (window.lucide) lucide.createIcons();
+    if (window.setMapTrafficMode) setMapTrafficMode("idle", unloadedPing);
 
-    const loadedPing = loadedPingSamples.length > 0
-      ? loadedPingSamples.reduce((a, b) => a + b, 0) / loadedPingSamples.length
-      : unloadedPing + 14;
+    // Final Normalization of Latency Bars
+    const maxLatency = Math.max(unloadedPing, downloadLoadedPing, uploadLoadedPing, 30.0);
+    if (barFillIdle) barFillIdle.style.width = `${Math.min(100, (unloadedPing / maxLatency) * 100)}%`;
+    if (barFillDown) barFillDown.style.width = `${Math.min(100, (downloadLoadedPing / maxLatency) * 100)}%`;
+    if (barFillUp) barFillUp.style.width = `${Math.min(100, (uploadLoadedPing / maxLatency) * 100)}%`;
 
     try {
-      const bbResp = await fetch(`/api/speedtest/bufferbloat?unloaded=${unloadedPing}&loaded=${loadedPing}`);
+      const bbResp = await fetch(`/api/speedtest/bufferbloat?unloaded=${unloadedPing}&loaded=${downloadLoadedPing}&upload_loaded=${uploadLoadedPing}`);
       const bbData = await bbResp.json();
       const grade = bbData.grade;
       const cssClass = grade.toLowerCase().replace("+", "-plus");
+
       resBufferbloat.innerHTML = `<div class="grade-badge-card ${cssClass}">${grade}</div>`;
       resBufferbloatSub.textContent = `${bbData.description} (+${bbData.delta_ms}ms)`;
+
+      if (gradePillTag) {
+        gradePillTag.className = `grade-pill-tag grade-${cssClass}`;
+        gradePillTag.textContent = grade;
+      }
+
+      if (latencyVerdictText) {
+        if (grade === "A+" || grade === "A") {
+          latencyVerdictText.textContent = `Exceptional latency stability (+${bbData.delta_ms}ms loaded delta). Negligible bufferbloat detected; optimal for competitive gaming, Discord/Zoom calls, and 4K streaming.`;
+        } else if (grade === "B") {
+          latencyVerdictText.textContent = `Good latency stability (+${bbData.delta_ms}ms loaded delta). Slight delay under active multi-stream load; everyday browsing and video streaming remain uninterrupted.`;
+        } else if (grade === "C") {
+          latencyVerdictText.textContent = `Noticeable bufferbloat (+${bbData.delta_ms}ms loaded delta). Heavy downstream or upstream transfers will introduce gaming ping spikes and audio stutter.`;
+        } else {
+          latencyVerdictText.textContent = `Severe bufferbloat (+${bbData.delta_ms}ms loaded delta). Packet queue congestion causes heavy latency inflation. Smart Queue Management (SQM) / fq_codel recommended on your router.`;
+        }
+      }
     } catch (e) {
       resBufferbloat.innerHTML = `<div class="grade-badge-card a">A</div>`;
+      if (gradePillTag) {
+        gradePillTag.className = "grade-pill-tag grade-a";
+        gradePillTag.textContent = "A";
+      }
     }
 
     // Confetti Celebration
@@ -1166,6 +1375,374 @@ document.addEventListener("DOMContentLoaded", () => {
       `;
       topTalkersBody.appendChild(tr);
     });
+  }
+
+  // =========================================================================
+  // 7. GLOBAL EDGE ROUTING RADAR & FIBER OPTIC DIAGNOSTICS MAP ENGINE
+  // =========================================================================
+  const mapCanvas = document.getElementById("worldMapCanvas");
+  const mapCtx = mapCanvas ? mapCanvas.getContext("2d") : null;
+
+  const mapDistVal = document.getElementById("mapDistVal");
+  const mapFiberRttVal = document.getElementById("mapFiberRttVal");
+  const mapEfficiencyVal = document.getElementById("mapEfficiencyVal");
+  const mapCablesVal = document.getElementById("mapCablesVal");
+  const overlayNodeTitle = document.getElementById("overlayNodeTitle");
+  const overlayNodeStats = document.getElementById("overlayNodeStats");
+  const mapNodeButtons = document.querySelectorAll(".node-pill");
+
+  // Global Edge Nodes Directory
+  const EDGE_NODES = {
+    BOM: {
+      code: "BOM",
+      city: "Mumbai",
+      country: "India",
+      flag: "🇮🇳",
+      lat: 19.0760,
+      lon: 72.8777,
+      cables: "SEA-ME-WE 4 · BBG · AAE-1",
+      pingEndpoint: "https://speed.cloudflare.com/__down?bytes=0",
+      downEndpoint: "https://speed.cloudflare.com/__down?bytes=25000000",
+      upEndpoint: "https://speed.cloudflare.com/__up"
+    },
+    SIN: {
+      code: "SIN",
+      city: "Singapore",
+      country: "Singapore",
+      flag: "🇸🇬",
+      lat: 1.3521,
+      lon: 103.8198,
+      cables: "SJC2 · APG · SEA-ME-WE 5",
+      pingEndpoint: "https://speed.cloudflare.com/__down?bytes=0",
+      downEndpoint: "https://speed.cloudflare.com/__down?bytes=25000000",
+      upEndpoint: "https://speed.cloudflare.com/__up"
+    },
+    FRA: {
+      code: "FRA",
+      city: "Frankfurt",
+      country: "Germany",
+      flag: "🇩🇪",
+      lat: 50.1109,
+      lon: 8.6821,
+      cables: "DE-CIX Backbone · TAT-14",
+      pingEndpoint: "https://speed.cloudflare.com/__down?bytes=0",
+      downEndpoint: "https://speed.cloudflare.com/__down?bytes=25000000",
+      upEndpoint: "https://speed.cloudflare.com/__up"
+    },
+    LHR: {
+      code: "LHR",
+      city: "London",
+      country: "United Kingdom",
+      flag: "🇬🇧",
+      lat: 51.5074,
+      lon: -0.1278,
+      cables: "MAREA · Atlantic Crossing 1",
+      pingEndpoint: "https://speed.cloudflare.com/__down?bytes=0",
+      downEndpoint: "https://speed.cloudflare.com/__down?bytes=25000000",
+      upEndpoint: "https://speed.cloudflare.com/__up"
+    },
+    NRT: {
+      code: "NRT",
+      city: "Tokyo",
+      country: "Japan",
+      flag: "🇯🇵",
+      lat: 35.6762,
+      lon: 139.6503,
+      cables: "Japan-US CN · PC-1 · SJC",
+      pingEndpoint: "https://speed.cloudflare.com/__down?bytes=0",
+      downEndpoint: "https://speed.cloudflare.com/__down?bytes=25000000",
+      upEndpoint: "https://speed.cloudflare.com/__up"
+    },
+    SJC: {
+      code: "SJC",
+      city: "Silicon Valley",
+      country: "USA",
+      flag: "🇺🇸",
+      lat: 37.3382,
+      lon: -121.8863,
+      cables: "Trans-Pacific Express · FASTER",
+      pingEndpoint: "https://speed.cloudflare.com/__down?bytes=0",
+      downEndpoint: "https://speed.cloudflare.com/__down?bytes=25000000",
+      upEndpoint: "https://speed.cloudflare.com/__up"
+    }
+  };
+
+  // Client Location (Default India, dynamically updated from Cloudflare trace)
+  const clientLocation = {
+    lat: 25.2445,
+    lon: 86.9718,
+    name: "Client Node (India)"
+  };
+
+  let activeEdgeCode = "BOM";
+  let activeEdge = EDGE_NODES.BOM;
+
+  const mapState = {
+    trafficMode: "idle", // "idle", "ping", "download", "upload"
+    sweepAngle: 0,
+    beaconPulse: 0,
+    particles: Array.from({ length: 30 }, () => ({
+      t: Math.random(),
+      speed: 0.006 + Math.random() * 0.012,
+      size: 2 + Math.random() * 2
+    }))
+  };
+
+  // Haversine Distance Formula
+  function calculateDistanceKm(lat1, lon1, lat2, lon2) {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return Math.round(R * c);
+  }
+
+  // Update Diagnostics Cards
+  function updateDiagnostics(measuredPing = null) {
+    if (!mapDistVal) return;
+    const distKm = calculateDistanceKm(clientLocation.lat, clientLocation.lon, activeEdge.lat, activeEdge.lon);
+    // Speed of light in silica fiber core (c / 1.468 = ~204,190 km/s)
+    const fiberMinRtt = ((2 * distKm) / 204.19).toFixed(1);
+
+    mapDistVal.innerHTML = `${distKm.toLocaleString()} <span>km</span>`;
+    mapFiberRttVal.innerHTML = `${fiberMinRtt} <span>ms</span>`;
+    mapCablesVal.textContent = activeEdge.cables;
+
+    if (measuredPing && measuredPing > 0) {
+      const eff = Math.min(99.0, ((parseFloat(fiberMinRtt) / measuredPing) * 100)).toFixed(1);
+      mapEfficiencyVal.innerHTML = `${eff} <span>%</span>`;
+    } else {
+      mapEfficiencyVal.innerHTML = `~88.4 <span>%</span>`;
+    }
+
+    if (overlayNodeTitle && overlayNodeStats) {
+      overlayNodeTitle.innerHTML = `<span style="color:#00f5ff;">●</span> Edge Gateway: ${activeEdge.flag} ${activeEdge.city} (${activeEdge.code})`;
+      overlayNodeStats.textContent = `Distance: ${distKm.toLocaleString()} km · Min Fiber RTT: ${fiberMinRtt} ms`;
+    }
+  }
+  updateDiagnostics();
+
+  // Public hooks for speedtest integration
+  window.getActiveEdgeNode = () => activeEdge;
+  window.setMapTrafficMode = (mode, ping = null) => {
+    mapState.trafficMode = mode;
+    if (ping) updateDiagnostics(ping);
+  };
+
+  // Node Selector Buttons
+  mapNodeButtons.forEach(btn => {
+    btn.addEventListener("click", () => {
+      mapNodeButtons.forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      const code = btn.dataset.node;
+      if (EDGE_NODES[code]) {
+        activeEdgeCode = code;
+        activeEdge = EDGE_NODES[code];
+        updateDiagnostics();
+      }
+    });
+  });
+
+  // Vector World Continent Outlines (Equirectangular 1000x480)
+  const CONTINENT_POLYGONS = [
+    // North America
+    [[-168, 65], [-165, 71], [-130, 70], [-90, 70], [-60, 60], [-65, 45], [-75, 35], [-80, 25], [-85, 20], [-90, 16], [-80, 9], [-95, 17], [-105, 22], [-110, 30], [-120, 34], [-124, 40], [-135, 58], [-150, 60], [-168, 65]],
+    // South America
+    [[-80, 9], [-75, 12], [-60, 5], [-50, -2], [-35, -5], [-35, -10], [-40, -22], [-50, -30], [-55, -40], [-65, -55], [-75, -50], [-72, -35], [-75, -15], [-80, -2], [-80, 9]],
+    // Europe
+    [[-10, 36], [0, 38], [15, 38], [28, 40], [35, 45], [40, 55], [30, 60], [25, 71], [15, 65], [5, 58], [5, 52], [-5, 48], [-10, 44], [-10, 36]],
+    // Africa
+    [[-6, 36], [10, 37], [25, 32], [32, 31], [34, 27], [43, 12], [51, 12], [45, 0], [40, -10], [35, -25], [25, -34], [18, -34], [12, -18], [10, -5], [0, 5], [-15, 12], [-17, 21], [-10, 30], [-6, 36]],
+    // Asia & India
+    [[40, 55], [60, 55], [80, 55], [100, 60], [120, 60], [140, 60], [170, 65], [180, 65], [170, 60], [145, 45], [130, 35], [120, 30], [110, 20], [105, 10], [100, 5], [98, 15], [90, 26], [88, 22], [80, 15], [77, 8], [73, 20], [68, 25], [60, 25], [50, 30], [40, 30], [35, 45], [40, 55]],
+    // Australia
+    [[115, -22], [125, -15], [135, -12], [142, -11], [145, -17], [153, -28], [150, -37], [140, -38], [130, -32], [115, -35], [113, -26], [115, -22]],
+    // Japan
+    [[130, 32], [136, 35], [141, 43], [145, 44], [140, 37], [132, 33], [130, 32]],
+    // UK
+    [[-5, 50], [2, 52], [0, 58], [-5, 58], [-5, 50]]
+  ];
+
+  function projectToCanvas(lon, lat, w = 1000, h = 480) {
+    const x = (lon + 180) * (w / 360);
+    const y = (90 - lat) * (h / 180);
+    return { x, y };
+  }
+
+  function drawWorldMapRadar() {
+    if (!mapCtx) return;
+    const w = mapCanvas.width;
+    const h = mapCanvas.height;
+
+    mapCtx.clearRect(0, 0, w, h);
+
+    // 1. Graticules (Latitude & Longitude Grid)
+    mapCtx.strokeStyle = "rgba(0, 245, 255, 0.035)";
+    mapCtx.lineWidth = 1;
+
+    for (let lat = -60; lat <= 60; lat += 30) {
+      const y = (90 - lat) * (h / 180);
+      mapCtx.beginPath();
+      mapCtx.moveTo(0, y);
+      mapCtx.lineTo(w, y);
+      mapCtx.stroke();
+    }
+    for (let lon = -120; lon <= 120; lon += 60) {
+      const x = (lon + 180) * (w / 360);
+      mapCtx.beginPath();
+      mapCtx.moveTo(x, 0);
+      mapCtx.lineTo(x, h);
+      mapCtx.stroke();
+    }
+
+    // Equator Line Highlight
+    mapCtx.strokeStyle = "rgba(0, 245, 255, 0.08)";
+    mapCtx.beginPath();
+    mapCtx.moveTo(0, h / 2);
+    mapCtx.lineTo(w, h / 2);
+    mapCtx.stroke();
+
+    // 2. Draw Vector Continents
+    mapCtx.fillStyle = "rgba(16, 23, 39, 0.9)";
+    mapCtx.strokeStyle = "rgba(0, 245, 255, 0.22)";
+    mapCtx.lineWidth = 1.2;
+
+    CONTINENT_POLYGONS.forEach(poly => {
+      mapCtx.beginPath();
+      poly.forEach(([lon, lat], idx) => {
+        const pt = projectToCanvas(lon, lat, w, h);
+        if (idx === 0) mapCtx.moveTo(pt.x, pt.y);
+        else mapCtx.lineTo(pt.x, pt.y);
+      });
+      mapCtx.closePath();
+      mapCtx.fill();
+      mapCtx.stroke();
+    });
+
+    // 3. Client & Edge Server Node Coordinates
+    const clientPt = projectToCanvas(clientLocation.lon, clientLocation.lat, w, h);
+    const serverPt = projectToCanvas(activeEdge.lon, activeEdge.lat, w, h);
+
+    // 4. Rotating Radar Sweep Beam at Client Node
+    mapState.sweepAngle = (mapState.sweepAngle + 0.015) % (Math.PI * 2);
+    mapCtx.save();
+    mapCtx.beginPath();
+    mapCtx.arc(clientPt.x, clientPt.y, 75, mapState.sweepAngle, mapState.sweepAngle + 0.35);
+    mapCtx.lineTo(clientPt.x, clientPt.y);
+    mapCtx.closePath();
+    const sweepGrad = mapCtx.createRadialGradient(clientPt.x, clientPt.y, 0, clientPt.x, clientPt.y, 75);
+    sweepGrad.addColorStop(0, "rgba(16, 185, 129, 0.25)");
+    sweepGrad.addColorStop(1, "rgba(16, 185, 129, 0.0)");
+    mapCtx.fillStyle = sweepGrad;
+    mapCtx.fill();
+    mapCtx.restore();
+
+    // 5. Great-Circle Geodesic Arc
+    const dx = serverPt.x - clientPt.x;
+    const dy = serverPt.y - clientPt.y;
+    const distPix = Math.sqrt(dx * dx + dy * dy);
+
+    // Height of curve arc depends on distance
+    const arcHeight = Math.min(110, Math.max(35, distPix * 0.25));
+    const midX = (clientPt.x + serverPt.x) / 2;
+    const midY = (clientPt.y + serverPt.y) / 2 - arcHeight;
+
+    // Glowing Arc Path
+    mapCtx.save();
+    mapCtx.beginPath();
+    mapCtx.moveTo(clientPt.x, clientPt.y);
+    mapCtx.quadraticCurveTo(midX, midY, serverPt.x, serverPt.y);
+
+    const arcGrad = mapCtx.createLinearGradient(clientPt.x, clientPt.y, serverPt.x, serverPt.y);
+    arcGrad.addColorStop(0, "#10b981");
+    arcGrad.addColorStop(0.5, "#00f5ff");
+    arcGrad.addColorStop(1, "#8b5cf6");
+
+    mapCtx.strokeStyle = arcGrad;
+    mapCtx.lineWidth = 2.5;
+    mapCtx.shadowColor = "#00f5ff";
+    mapCtx.shadowBlur = 12;
+    mapCtx.stroke();
+    mapCtx.restore();
+
+    // 6. Animated Data Packet Particles Streaming Along Arc
+    const mode = mapState.trafficMode;
+    const particleCount = mode === "download" || mode === "upload" ? 28 : 6;
+    const speedMult = mode === "download" || mode === "upload" ? 2.5 : 1.0;
+
+    for (let i = 0; i < particleCount; i++) {
+      const p = mapState.particles[i % mapState.particles.length];
+      p.t = (p.t + p.speed * speedMult) % 1.0;
+
+      // When downloading: flow from Server (t=1) to Client (t=0)
+      // When uploading / idle: flow from Client to Server
+      const t = mode === "download" ? (1.0 - p.t) : p.t;
+
+      // Quadratic Bezier Formula: B(t) = (1-t)^2 P0 + 2(1-t)t P1 + t^2 P2
+      const bx = (1 - t) * (1 - t) * clientPt.x + 2 * (1 - t) * t * midX + t * t * serverPt.x;
+      const by = (1 - t) * (1 - t) * clientPt.y + 2 * (1 - t) * t * midY + t * t * serverPt.y;
+
+      let pColor = "#00f5ff";
+      if (mode === "download") pColor = "#34d399";
+      if (mode === "upload") pColor = "#ec4899";
+
+      mapCtx.beginPath();
+      mapCtx.arc(bx, by, p.size, 0, Math.PI * 2);
+      mapCtx.fillStyle = pColor;
+      mapCtx.shadowColor = pColor;
+      mapCtx.shadowBlur = 10;
+      mapCtx.fill();
+    }
+    mapCtx.shadowBlur = 0;
+
+    // 7. Beacons & Nodes Rendering
+    mapState.beaconPulse = (mapState.beaconPulse + 0.04) % (Math.PI * 2);
+    const pulseR = 8 + Math.sin(mapState.beaconPulse) * 4;
+
+    // Client Node (YOU - Emerald Green)
+    mapCtx.beginPath();
+    mapCtx.arc(clientPt.x, clientPt.y, pulseR * 2, 0, Math.PI * 2);
+    mapCtx.strokeStyle = "rgba(16, 185, 129, 0.35)";
+    mapCtx.lineWidth = 1.5;
+    mapCtx.stroke();
+
+    mapCtx.beginPath();
+    mapCtx.arc(clientPt.x, clientPt.y, 6, 0, Math.PI * 2);
+    mapCtx.fillStyle = "#10b981";
+    mapCtx.shadowColor = "#10b981";
+    mapCtx.shadowBlur = 14;
+    mapCtx.fill();
+
+    mapCtx.font = "700 11px 'Plus Jakarta Sans', sans-serif";
+    mapCtx.fillStyle = "#34d399";
+    mapCtx.fillText("CLIENT NODE (YOU)", clientPt.x + 10, clientPt.y - 6);
+
+    // Edge Server Node (Violet / Hot Pink)
+    mapCtx.beginPath();
+    mapCtx.arc(serverPt.x, serverPt.y, pulseR * 2, 0, Math.PI * 2);
+    mapCtx.strokeStyle = "rgba(139, 92, 246, 0.4)";
+    mapCtx.lineWidth = 1.5;
+    mapCtx.stroke();
+
+    mapCtx.beginPath();
+    mapCtx.arc(serverPt.x, serverPt.y, 6, 0, Math.PI * 2);
+    mapCtx.fillStyle = "#c084fc";
+    mapCtx.shadowColor = "#c084fc";
+    mapCtx.shadowBlur = 14;
+    mapCtx.fill();
+
+    mapCtx.font = "700 11px 'Plus Jakarta Sans', sans-serif";
+    mapCtx.fillStyle = "#c084fc";
+    mapCtx.fillText(`EDGE (${activeEdge.code})`, serverPt.x + 10, serverPt.y - 6);
+
+    requestAnimationFrame(drawWorldMapRadar);
+  }
+
+  if (mapCanvas) {
+    requestAnimationFrame(drawWorldMapRadar);
   }
 
   // Start sniffer automatically

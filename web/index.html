@@ -76,16 +76,33 @@
 
         <!-- Target Selector & Edge Detection Bar -->
         <div class="target-edge-bar">
-          <div class="target-picker">
-            <label for="speedTestTarget">Benchmark Node</label>
-            <div class="custom-select-wrapper">
-              <select class="custom-select" id="speedTestTarget">
-                <option value="cloudflare" selected>🌐 Global CDN Edge (Fast.com & Ookla Standard)</option>
-                <option value="local">💻 Localhost Socket Server (Host Loopback 127.0.0.1:8080)</option>
-              </select>
-              <i data-lucide="chevron-down" class="select-arrow" style="width: 14px; height: 14px;"></i>
+          <div class="test-config-group">
+            <div class="target-picker">
+              <label for="speedTestTarget">CDN Provider</label>
+              <div class="custom-select-wrapper">
+                <select class="custom-select" id="speedTestTarget">
+                  <option value="cloudflare" selected>🌐 Cloudflare Anycast CDN (300+ Edge PoPs)</option>
+                  <option value="fast">🍿 Netflix Open Connect CDN (Fast.com Engine)</option>
+                  <option value="jsdelivr">⚡ AWS CloudFront / jsDelivr Edge</option>
+                  <option value="local">💻 Localhost Socket Server (Host Loopback 127.0.0.1:8080)</option>
+                </select>
+                <i data-lucide="chevron-down" class="select-arrow" style="width: 14px; height: 14px;"></i>
+              </div>
+            </div>
+
+            <!-- Parallel TCP Streams Selector -->
+            <div class="streams-picker">
+              <label>Parallel Streams</label>
+              <div class="streams-btn-group" id="streamsBtnGroup">
+                <button type="button" class="stream-pill" data-streams="1" title="Single-stream TCP (tests TCP window scaling & single-socket limits)">1x</button>
+                <button type="button" class="stream-pill" data-streams="2" title="Dual-stream concurrency">2x</button>
+                <button type="button" class="stream-pill active" data-streams="4" title="4-stream balanced standard (Ookla / Web standard)">4x</button>
+                <button type="button" class="stream-pill" data-streams="8" title="8-stream high saturation">8x</button>
+                <button type="button" class="stream-pill" data-streams="16" title="16-stream extreme socket pipeline">16x</button>
+              </div>
             </div>
           </div>
+
           <div class="edge-meta-tags">
             <span class="edge-tag highlight" id="metaLocation">
               <i data-lucide="map-pin" style="width: 12px; height: 12px;"></i>
@@ -169,6 +186,144 @@
             </div>
             <div class="card-main-stat" id="resBufferbloat">--</div>
             <div class="card-sub-info" id="resBufferbloatSub">Loaded vs. unloaded latency stability</div>
+          </div>
+        </div>
+
+        <!-- ===================================================================
+             LOADED & UNLOADED LATENCY BREAKDOWN (BUFFERBLOAT ANALYZER)
+             =================================================================== -->
+        <div class="latency-breakdown-card">
+          <div class="latency-deck-header">
+            <div class="latency-title-group">
+              <div class="latency-icon-box">
+                <i data-lucide="activity" style="width: 18px; height: 18px; color: #38bdf8;"></i>
+              </div>
+              <div>
+                <div class="latency-deck-title">
+                  <span>LOADED & UNLOADED LATENCY TELEMETRY</span>
+                  <span class="latency-badge-tag">RFC 3550 & BUFFERBLOAT</span>
+                </div>
+                <div class="latency-deck-subtitle">Idle RTT vs. Download-Loaded vs. Upload-Loaded Latency Deltas</div>
+              </div>
+            </div>
+            <div class="latency-grade-pill-box" id="latencyGradeBox">
+              <span class="grade-sublabel">BUFFERBLOAT GRADE</span>
+              <div class="grade-pill-tag grade-neutral" id="gradePillTag">--</div>
+            </div>
+          </div>
+
+          <!-- 3-Column Latency Breakdown Grid -->
+          <div class="latency-columns-grid">
+            <!-- Idle / Unloaded Latency -->
+            <div class="latency-metric-box idle">
+              <div class="latency-box-top">
+                <span class="latency-dot idle"></span>
+                <span class="latency-box-name">Unloaded (Idle)</span>
+                <span class="latency-state-pill idle">Baseline</span>
+              </div>
+              <div class="latency-big-num" id="latIdleVal">-- <span>ms</span></div>
+              <div class="latency-sub-meta" id="latIdleJitter">Jitter: -- ms</div>
+              <div class="latency-progress-track">
+                <div class="latency-progress-fill idle" id="barFillIdle" style="width: 0%;"></div>
+              </div>
+            </div>
+
+            <!-- Download Loaded Latency -->
+            <div class="latency-metric-box down">
+              <div class="latency-box-top">
+                <span class="latency-dot down"></span>
+                <span class="latency-box-name">Download Loaded</span>
+                <span class="latency-delta-tag" id="latDownDeltaTag">+0.0 ms</span>
+              </div>
+              <div class="latency-big-num" id="latDownVal">-- <span>ms</span></div>
+              <div class="latency-sub-meta" id="latDownSub">During downstream saturation</div>
+              <div class="latency-progress-track">
+                <div class="latency-progress-fill down" id="barFillDown" style="width: 0%;"></div>
+              </div>
+            </div>
+
+            <!-- Upload Loaded Latency -->
+            <div class="latency-metric-box up">
+              <div class="latency-box-top">
+                <span class="latency-dot up"></span>
+                <span class="latency-box-name">Upload Loaded</span>
+                <span class="latency-delta-tag" id="latUpDeltaTag">+0.0 ms</span>
+              </div>
+              <div class="latency-big-num" id="latUpVal">-- <span>ms</span></div>
+              <div class="latency-sub-meta" id="latUpSub">During upstream saturation</div>
+              <div class="latency-progress-track">
+                <div class="latency-progress-fill up" id="barFillUp" style="width: 0%;"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Network Diagnostics Diagnosis & Impact Advice -->
+          <div class="latency-verdict-banner" id="latencyVerdictBanner">
+            <i data-lucide="info" style="width: 16px; height: 16px; color: #38bdf8;" class="verdict-icon"></i>
+            <span class="verdict-text" id="latencyVerdictText">Ready to benchmark latency stability under active saturation.</span>
+          </div>
+        </div>
+
+        <!-- ===================================================================
+             GLOBAL EDGE ROUTING RADAR & FIBER OPTIC DIAGNOSTICS MAP
+             =================================================================== -->
+        <div class="global-map-card">
+          <div class="map-card-header">
+            <div class="map-title-group">
+              <div class="map-status-dot"></div>
+              <div>
+                <div class="map-card-title">
+                  <span>GLOBAL EDGE ROUTING & PACKET RADAR</span>
+                  <span class="map-live-tag">LIVE TELEMETRY</span>
+                </div>
+                <div class="map-card-subtitle">Great-Circle Geodesic Projection • Fiber Propagation Delay Diagnostics</div>
+              </div>
+            </div>
+            
+            <!-- Quick Node Selector Pills -->
+            <div class="map-node-selector" id="mapNodeSelector">
+              <button class="node-pill active" data-node="BOM">🇮🇳 Mumbai (BOM)</button>
+              <button class="node-pill" data-node="SIN">🇸🇬 Singapore (SIN)</button>
+              <button class="node-pill" data-node="FRA">🇩🇪 Frankfurt (FRA)</button>
+              <button class="node-pill" data-node="LHR">🇬🇧 London (LHR)</button>
+              <button class="node-pill" data-node="NRT">🇯🇵 Tokyo (NRT)</button>
+              <button class="node-pill" data-node="SJC">🇺🇸 Silicon Valley (SJC)</button>
+            </div>
+          </div>
+
+          <!-- Interactive Map Viewport & Canvas -->
+          <div class="world-map-viewport">
+            <canvas id="worldMapCanvas" width="1000" height="480"></canvas>
+            
+            <!-- Floating Telemetry Overlay Tag -->
+            <div class="map-floating-overlay" id="mapFloatingOverlay">
+              <div class="overlay-node-title" id="overlayNodeTitle">Edge Node: Cloudflare Mumbai (BOM)</div>
+              <div class="overlay-node-stats" id="overlayNodeStats">Distance: ~1,248 km · Min Fiber RTT: ~12.2 ms</div>
+            </div>
+          </div>
+
+          <!-- Aerospace Transit & Fiber Optics Diagnostics Bar -->
+          <div class="fiber-diagnostics-grid">
+            <div class="fiber-card">
+              <div class="fiber-label">Geodesic Distance</div>
+              <div class="fiber-val" id="mapDistVal">1,248 <span>km</span></div>
+              <div class="fiber-sub" id="mapDistSub">Great-Circle Haversine</div>
+            </div>
+            <div class="fiber-card">
+              <div class="fiber-label">Speed of Light in Fiber</div>
+              <div class="fiber-val" id="mapFiberRttVal">12.2 <span>ms</span></div>
+              <div class="fiber-sub">Theoretical Limit (c / 1.468)</div>
+            </div>
+            <div class="fiber-card">
+              <div class="fiber-label">Routing Efficiency</div>
+              <div class="fiber-val" id="mapEfficiencyVal">88.4 <span>%</span></div>
+              <div class="fiber-sub">Physical vs Actual RTT</div>
+            </div>
+            <div class="fiber-card">
+              <div class="fiber-label">Undersea Cable Systems</div>
+              <div class="fiber-val cables" id="mapCablesVal">SEA-ME-WE 4 · BBG</div>
+              <div class="fiber-sub">Submarine Optical Backbone</div>
+            </div>
           </div>
         </div>
 

@@ -9,6 +9,7 @@ import json
 import time
 import socket
 import urllib.parse
+import urllib.request
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from core.sniffer.engine import SnifferEngine
 from core.speedtest.throughput import SpeedPayloadPool, ThroughputTracker
@@ -120,8 +121,23 @@ class UnifiedRequestHandler(BaseHTTPRequestHandler):
         elif path == "/api/speedtest/bufferbloat":
             unloaded = float(query.get("unloaded", [10.0])[0])
             loaded = float(query.get("loaded", [25.0])[0])
-            res = LatencyMeasurer.calculate_bufferbloat_grade(unloaded, loaded)
+            up_loaded_param = query.get("upload_loaded", None)
+            up_loaded = float(up_loaded_param[0]) if up_loaded_param else None
+            res = LatencyMeasurer.calculate_bufferbloat_grade(unloaded, loaded, up_loaded)
             self.send_json_response(res)
+            return
+
+        elif path == "/api/speedtest/fast-targets":
+            try:
+                req = urllib.request.Request(
+                    "https://api.fast.com/netflix/speedtest/v2?https=true&token=YXNkZmFzZGxmbnNkYWZoYXNkZmhrYWxm&urlCount=4",
+                    headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36"}
+                )
+                with urllib.request.urlopen(req, timeout=4) as resp:
+                    fast_data = json.loads(resp.read().decode("utf-8"))
+                    self.send_json_response(fast_data)
+            except Exception as e:
+                self.send_json_response({"error": str(e), "targets": []}, status_code=500)
             return
 
         # ---------------------------------------------------------------------
